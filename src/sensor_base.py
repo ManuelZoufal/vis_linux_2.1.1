@@ -1,5 +1,8 @@
 import logging
 
+# (connect, read) timeout in seconds for all requests to a sensor
+REQUEST_TIMEOUT = (5, 30)
+
 
 class Sensor:
     def __init__(self, sensor_id, ip_address, name, sensor_type, group_id, datapoint_id):

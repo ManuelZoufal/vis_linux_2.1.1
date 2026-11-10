@@ -1,0 +1,108 @@
+# VIS – Personenzählung und Belegungsanzeige
+
+Flask-Anwendung, die Zählsensoren (IEE, Hanwha) abfragt, die Belegung je Gruppe anzeigt
+und die Werte an Siemens Navigator überträgt.
+
+## Voraussetzungen
+
+- Python 3.11 (die Abhängigkeiten in `requirements.txt` sind mit 3.11 getestet)
+- Netzwerkzugriff vom Server auf die Sensoren und auf den Proxy für Navigator
+
+## Installation (SUSE Linux Enterprise Server)
+
+```bash
+sudo zypper install python311
+```
+
+```bash
+python3.11 -m venv venv
+```
+
+```bash
+venv/bin/pip install -r requirements.txt
+```
+
+## Konfiguration
+
+1. `env` nach `.env` kopieren und die Platzhalter ersetzen:
+
+   ```bash
+   cp env .env && chmod 600 .env
+   ```
+
+   | Variable | Bedeutung |
+   |---|---|
+   | `APP_SECRET_KEY` | Pflicht. Schlüssel für die Sitzungs-Cookies, z. B. aus `python3.11 -c "import secrets; print(secrets.token_hex(32))"` |
+   | `DEFAULT_ADMIN_PASSWORD` | Pflicht. Passwort des Administrators, der bei jedem Start angelegt wird |
+   | `DEFAULT_ADMIN_USER` | Benutzername des Administrators (Standard `admin`) |
+   | `NAVIGATOR_USERNAME`, `NAVIGATOR_PASSWORD` | Zugangsdaten für Navigator; ohne sie findet kein Upload statt |
+   | `APP_PORT` | Port des Webservers (Standard 5000) |
+   | `APP_DEBUG` | `False` im Betrieb. `True` aktiviert den Werkzeug-Debugger und ausführliche Logs |
+   | `SESSION_LIFETIME_HOURS` | Gültigkeit einer Sitzung mit „Angemeldet bleiben“ (Standard 24) |
+   | `MAX_UPLOAD_MB` | Maximale Größe eines Uploads (Standard 5) |
+   | `NO_PROXY` | Adressen der IEE-Sensoren, falls auf dem Server `HTTPS_PROXY` gesetzt ist |
+
+   Fehlt `APP_SECRET_KEY` oder `DEFAULT_ADMIN_PASSWORD`, bricht der Start mit einer Meldung ab.
+
+2. In `config.json` die IP-Adressen und Zugangsdaten der Sensoren eintragen.
+
+3. Zertifikat und Schlüssel des Webservers als `Webserver_IP.crt` und `Webserver_IP.pem`
+   im Programmverzeichnis ablegen.
+
+## Start
+
+Die Anwendung muss aus dem Programmverzeichnis gestartet werden, weil `config.json`,
+`sensor_data.db` und `change_log.txt` relativ dazu gesucht werden.
+
+```bash
+venv/bin/python app.py
+```
+
+Danach ist die Oberfläche unter `https://<Server>:<APP_PORT>/` erreichbar.
+
+Hinweise:
+
+- Beim Start wird `sensor_data.db` gelöscht und neu angelegt. Über die Oberfläche angelegte
+  Benutzer gehen dabei verloren.
+- Nicht parallel zu einer zweiten Instanz mit derselben `config.json` starten: Beide würden
+  dieselben Sensoren abfragen, die Zeitpläne (Zurücksetzen, Neustart) doppelt ausführen und
+  doppelt an Navigator senden.
+- Ein Port unter 1024 (z. B. 443) erfordert Root-Rechte oder die Capability `cap_net_bind_service`.
+- Ist `firewalld` aktiv, muss der Port freigegeben sein:
+
+  ```bash
+  sudo firewall-cmd --permanent --add-port=<APP_PORT>/tcp && sudo firewall-cmd --reload
+  ```
+
+## Betrieb als Dienst (Beispiel)
+
+`/etc/systemd/system/vis.service`, Pfade und Benutzer anpassen:
+
+```ini
+[Unit]
+Description=VIS Personenzaehlung und Belegungsanzeige
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=vis
+WorkingDirectory=/opt/vis
+ExecStart=/opt/vis/venv/bin/python app.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now vis
+```
+
+```bash
+journalctl -u vis -f
+```
+
+## Überwachung
+
+Administratoren sehen unter „Logs“ den Abschnitt „Thread-Status“: je Hintergrund-Thread den
+Zustand, den letzten erfolgreichen Durchlauf und den letzten Fehler, alle 2 Sekunden aktualisiert.

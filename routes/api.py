@@ -1188,7 +1188,7 @@ def update_group_settings(group_id):
     group['name'] = data.get('name', group['name'])
     group['max_occupancy'] = data.get('max_occupancy', group['max_occupancy'])
     group['welcome_text'] = data.get('welcome_text', group['welcome_text'])
-    group['maintenance_mode'] = data.get('maintenance_mode'. group.get('maintenance_mode', False))
+    group['maintenance_mode'] = data.get('maintenance_mode', group.get('maintenance_mode', False))
 
     with open('config.json', 'w') as file:
         json.dump(config, file, indent=4)

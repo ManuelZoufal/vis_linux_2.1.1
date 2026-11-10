@@ -90,7 +90,7 @@ function updateTrafficLight(totalOccupancy, maxOccupancy) {
 
 function updateMarqueeText() {
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '{{ url_for("visualize.get_marquee_text") }}', true);
+    xhr.open('GET', '/visualize/get_marquee_text', true);
     xhr.onreadystatechange = function() {
         if (xhr.readyState === 4 && xhr.status === 200) {
             var response = JSON.parse(xhr.responseText);
