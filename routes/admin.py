@@ -1,10 +1,37 @@
 from . import admin_bp
 
-from src.helpers import login_required
+from src.helpers import login_required, log_change
+from src.navigator import create_OAUTH_token
+from src import login_guard
 from src.database import get_connection
 
-from flask import render_template, request, redirect, url_for, flash, session
+from flask import render_template, request, redirect, url_for, flash, session, current_app
+from dotenv import set_key
+import os
 from werkzeug.security import check_password_hash, generate_password_hash
+import sqlite3
+
+ROLES = ('Administrator', 'Benutzer', 'Betrachter')
+
+# Hash of a random value, checked when the user name does not exist
+_DUMMY_HASH = generate_password_hash(os.urandom(16).hex(), method='pbkdf2:sha256')
+
+
+def _is_last_administrator(conn, user):
+    """True if the user is the only remaining Administrator"""
+    if user['role'] != 'Administrator':
+        return False
+    count = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'Administrator'").fetchone()[0]
+    return count <= 1
+
+
+def _validate_user(username, role):
+    """Return a description of the first problem, None if username and role are valid"""
+    if not username:
+        return 'Der Benutzername darf nicht leer sein.'
+    if role not in ROLES:
+        return 'Unbekannte Rolle.'
+    return None
 
 # /admin
 @admin_bp.route('/', endpoint='index')
@@ -18,22 +45,35 @@ def admin_index():
 def login():
     """Render the login page"""
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
         remember = 'remember' in request.form
+        client = request.remote_addr or 'unknown'
+
+        locked = login_guard.seconds_locked(client, username)
+        if locked:
+            flash(f'Zu viele Fehlversuche. Bitte in {(locked + 59) // 60} Minute(n) erneut versuchen.', 'error')
+            return render_template('admin/login.html'), 429
 
         conn = get_connection()
         user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         conn.close()
 
-        if user and check_password_hash(user['password'], password):
+        # Always check a hash, so an unknown user name does not answer faster than a known one
+        password_ok = check_password_hash(user['password'] if user else _DUMMY_HASH, password)
+        if user and password_ok:
+            login_guard.record_success(client, username)
+            session.clear()
             session['user_id'] = user['id']
             session['role'] = user['role']
             if remember:
                 session.permanent = True
             return redirect(url_for('admin.index'))
-        else:
-            flash('Benutzername oder Passwort falsch!', 'error')
+
+        if login_guard.record_failure(client, username):
+            shown = ''.join(ch for ch in username if ch.isprintable())[:50]
+            log_change(f"Login locked for {login_guard.LOCK_MINUTES} minutes after repeated failures: user '{shown}' from {client}")
+        flash('Benutzername oder Passwort falsch!', 'error')
 
     return render_template('admin/login.html')
 
@@ -60,16 +100,28 @@ def manage_users():
 def add_user():
     """Add a new user"""
     if request.method == 'POST':
-        username = request.form['username']
-        hashed_password = generate_password_hash(request.form['password'], method='pbkdf2:sha256')
-        role = request.form['role']
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        role = request.form.get('role', '')
 
-        conn = get_connection()
-        conn.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', (username, hashed_password, role))
-        conn.commit()
-        conn.close()
+        error = _validate_user(username, role)
+        if not error and not password:
+            error = 'Das Passwort darf nicht leer sein.'
+        if not error:
+            conn = get_connection()
+            try:
+                conn.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+                             (username, generate_password_hash(password, method='pbkdf2:sha256'), role))
+                conn.commit()
+            except sqlite3.IntegrityError:
+                error = f'Der Benutzername „{username}“ ist bereits vergeben.'
+            finally:
+                conn.close()
+        if error:
+            flash(error, 'error')
+            return render_template('admin/add_user.html')
 
-        flash('User added successfully')
+        flash(f'Benutzer „{username}“ wurde angelegt.', 'success')
         return redirect(url_for('admin.manage_users'))
 
     return render_template('admin/add_user.html')
@@ -84,19 +136,32 @@ def edit_user(id):
     conn.close()
 
     if user is None:
-        flash('User not found')
+        flash('Benutzer nicht gefunden.', 'error')
         return redirect(url_for('admin.manage_users'))
 
     if request.method == 'POST':
-        username = request.form['username']
-        role = request.form['role']
+        username = request.form.get('username', '').strip()
+        role = request.form.get('role', '')
 
-        conn = get_connection()
-        conn.execute('UPDATE users SET username = ?, role = ? WHERE id = ?', (username, role, id))
-        conn.commit()
-        conn.close()
+        error = _validate_user(username, role)
+        if not error:
+            conn = get_connection()
+            try:
+                if role != 'Administrator' and _is_last_administrator(conn, user):
+                    raise ValueError('Der letzte Administrator muss die Rolle Administrator behalten.')
+                conn.execute('UPDATE users SET username = ?, role = ? WHERE id = ?', (username, role, id))
+                conn.commit()
+            except sqlite3.IntegrityError:
+                error = f'Der Benutzername „{username}“ ist bereits vergeben.'
+            except ValueError as e:
+                error = str(e)
+            finally:
+                conn.close()
+        if error:
+            flash(error, 'error')
+            return render_template('admin/edit_user.html', user=user)
 
-        flash('User updated successfully')
+        flash(f'Benutzer „{username}“ wurde aktualisiert.', 'success')
         return redirect(url_for('admin.manage_users'))
 
     return render_template('admin/edit_user.html', user=user)
@@ -106,37 +171,52 @@ def edit_user(id):
 @login_required(role='Administrator')
 def delete_user(id):
     """Delete a user"""
-    conn = get_connection()
-    conn.execute('DELETE FROM users WHERE id = ?', (id,))
-    conn.commit()
-    conn.close()
+    if id == session.get('user_id'):
+        flash('Das eigene Konto kann nicht gelöscht werden.', 'error')
+        return redirect(url_for('admin.manage_users'))
 
-    flash('User deleted successfully')
+    conn = get_connection()
+    try:
+        user = conn.execute('SELECT * FROM users WHERE id = ?', (id,)).fetchone()
+        if user is None:
+            flash('Benutzer nicht gefunden.', 'error')
+        elif _is_last_administrator(conn, user):
+            flash('Der letzte Administrator kann nicht gelöscht werden.', 'error')
+        else:
+            conn.execute('DELETE FROM users WHERE id = ?', (id,))
+            conn.commit()
+            flash(f'Benutzer „{user["username"]}“ wurde gelöscht.', 'success')
+    finally:
+        conn.close()
     return redirect(url_for('admin.manage_users'))
 
-# /admin/users/reset_password/<int:id>
+# /admin/users/reset_password/  (every logged in user changes the own password)
 @admin_bp.route('/users/reset_password/', methods=['POST'], endpoint='reset_password')
-@login_required(role='Administrator')
+@login_required()
 def reset_password():
-    if request.method == 'POST':
+    """Change the password of the logged in user"""
+    new_password = request.form.get('new_password', '')
+    if not new_password:
+        flash('Das neue Passwort darf nicht leer sein.', 'error')
+        return redirect(url_for('admin.change_password'))
+    if new_password != request.form.get('confirm_password', ''):
+        flash('Die neuen Passwörter stimmen nicht überein.', 'error')
+        return redirect(url_for('admin.change_password'))
 
-        if request.form['new_password'] != request.form['confirm_password']:
-            flash('New passwords do not match')
-            return redirect(url_for('admin.change_password'))
-
-        conn = get_connection()
+    conn = get_connection()
+    try:
         user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-
-        if not check_password_hash(user['password'], request.form['current_password']):
-            flash('Current password is incorrect')
+        if user is None or not check_password_hash(user['password'], request.form.get('current_password', '')):
+            flash('Das aktuelle Passwort ist falsch.', 'error')
             return redirect(url_for('admin.change_password'))
-        conn.execute('UPDATE users SET password = ? WHERE id = ?', (generate_password_hash(request.form['new_password'], method='pbkdf2:sha256'), session['user_id']))
+        conn.execute('UPDATE users SET password = ? WHERE id = ?',
+                     (generate_password_hash(new_password, method='pbkdf2:sha256'), session['user_id']))
         conn.commit()
+    finally:
         conn.close()
-        flash('Password changed successfully')
-        return render_template('admin/index.html')
 
-    return render_template('admin/change_password.html')
+    flash('Das Passwort wurde geändert.', 'success')
+    return redirect(url_for('admin.index'))
 
 # /admin/users/reset_password
 @admin_bp.route('/users/reset_password', methods=['GET'] ,endpoint='change_password')
@@ -151,3 +231,52 @@ def change_password():
 def landing_page():
     """Render the landing page"""
     return render_template('admin/index.html')
+
+
+# /admin/navigator
+@admin_bp.route('/navigator', methods=['GET', 'POST'], endpoint='navigator')
+@login_required(role='Administrator')
+def navigator_credentials():
+    """
+    Show and change the Navigator credentials
+
+    The values are written to the .env file and to the environment of the
+    running process, so the next upload uses them without a restart.
+    The password is never sent to the browser.
+    """
+    if request.method == 'POST':
+        username = request.form.get('navigator_username', '').strip()
+        password = request.form.get('navigator_password', '')
+        if not username:
+            flash('Der Benutzername darf nicht leer sein.', 'error')
+            return redirect(url_for('admin.navigator'))
+
+        values = {'NAVIGATOR_USERNAME': username}
+        if password:
+            values['NAVIGATOR_PASSWORD'] = password  # empty means: keep the stored password
+
+        env_path = os.path.join(current_app.root_path, '.env')
+        try:
+            for key, value in values.items():
+                set_key(env_path, key, value, quote_mode='always')
+        except OSError as e:
+            flash(f'Die Datei .env konnte nicht geschrieben werden: {e}', 'error')
+            return redirect(url_for('admin.navigator'))
+        os.environ.update(values)
+
+        changed = 'Benutzername und Passwort' if password else 'Benutzername'
+        log_change(f"Navigator credentials changed ({'username and password' if password else 'username'}) by user id {session.get('user_id')}")
+        flash(f'Navigator-Zugangsdaten gespeichert ({changed}).', 'success')
+
+        if request.form.get('action') == 'save_and_test':
+            if create_OAUTH_token():
+                flash('Verbindungstest erfolgreich: Navigator hat die Zugangsdaten akzeptiert.', 'success')
+            else:
+                flash('Verbindungstest fehlgeschlagen: Navigator hat kein Token ausgestellt. Details stehen im Server-Log.', 'error')
+        return redirect(url_for('admin.navigator'))
+
+    return render_template(
+        'admin/navigator.html',
+        username=os.environ.get('NAVIGATOR_USERNAME', ''),
+        password_set=bool(os.environ.get('NAVIGATOR_PASSWORD')),
+    )

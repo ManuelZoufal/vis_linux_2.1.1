@@ -3,7 +3,7 @@ import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from src.sensor_base import Sensor
+from src.sensor_base import Sensor, REQUEST_TIMEOUT
 from src.database import save_sensor_values
 
 class IEE(Sensor):
@@ -32,8 +32,9 @@ class IEE(Sensor):
         otherwise
         """
         url = f"https://{self.ip_address}/webservice/getoutput"
+        response = None
         try:
-            response = self.session.get(url, verify=False, proxies={})
+            response = self.session.get(url, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
             response.raise_for_status()
             data = response.json()
             self.forward_value = data["counters"]["total_forward_dir"]
@@ -55,8 +56,9 @@ class IEE(Sensor):
         """
         if self._authenticate():
             url = f"https://{self.ip_address}/webservice/reset_counters"
+            response = None
             try:
-                response = self.session.post(url, verify=False, proxies={})
+                response = self.session.post(url, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
                 response.raise_for_status()
                 self.log_info(f"Sensor values reset successfully. Response: {response.text}")
                 return True
@@ -76,8 +78,9 @@ class IEE(Sensor):
         """
         if self._authenticate():
             url = f"https://{self.ip_address}/webservice/reboot"
+            response = None
             try:
-                response = self.session.post(url, verify=False, proxies={})
+                response = self.session.post(url, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
                 response.raise_for_status()
                 self.log_info(f"Sensor rebooted successfully. Response: {response.text}")
                 return True
@@ -96,8 +99,9 @@ class IEE(Sensor):
         otherwise
         """
         url = f"https://{self.ip_address}/webservice/login"
+        response = None
         try:
-            response = self.session.post(url, json={'password': self.password}, verify=False, proxies={})
+            response = self.session.post(url, json={'password': self.password}, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
             response.raise_for_status()
             self.log_info(f"Authenticated successfully. Response: {response.text}")
             return True
@@ -113,8 +117,9 @@ class IEE(Sensor):
         bool: True if logged out successfully, False otherwise
         """
         url = f"https://{self.ip_address}/webservice/logout"
+        response = None
         try:
-            response = self.session.post(url, verify=False, proxies={})
+            response = self.session.post(url, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
             response.raise_for_status()
             self.log_info(f"Logged out successfully. Response: {response.text}")
             return True

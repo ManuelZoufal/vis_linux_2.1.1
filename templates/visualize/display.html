@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Belegungsanzeige</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    {# Chart.js 4.6.1 and chartjs-plugin-datalabels 2.2.0 are served locally, so the display works without internet access #}
+    <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/chartjs-plugin-datalabels.min.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/index_styles.css') }}">
 </head>
 <body>

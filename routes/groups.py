@@ -1,6 +1,7 @@
 from . import group_bp
 
 from src.database import get_connection
+from src.config_store import load_config
 
 import json
 from flask import jsonify
@@ -9,8 +10,7 @@ from flask import jsonify
 @group_bp.route('/', methods=['GET'])
 def get_groups():
     """Get all groups"""
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     groups = config['groups']
     return jsonify(groups)
 
@@ -18,8 +18,7 @@ def get_groups():
 @group_bp.route('/<group_id>', methods=['GET', 'POST'])
 def group_occupancy(group_id):
     """Get group occupancy"""
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
 
     group_config = next((group for group in config['groups'] if str(group['group_id']) == group_id), None)
     if not group_config:

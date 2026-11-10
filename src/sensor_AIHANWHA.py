@@ -4,7 +4,7 @@ from requests.auth import HTTPDigestAuth
 from requests.exceptions import ConnectionError, SSLError, Timeout, RequestException
 
 from src.database import save_sensor_values
-from src.sensor_base import Sensor
+from src.sensor_base import Sensor, REQUEST_TIMEOUT
 
 class AI_HANWHA(Sensor):
     def __init__(self, sensor_id, ip_address, name, group_id, username, password, datapoint_id):
@@ -40,7 +40,7 @@ class AI_HANWHA(Sensor):
         for protocol in protocols:
             url = f"{protocol}://{self.ip_address}/stw-cgi/eventsources.cgi?msubmenu=peoplecount&action=check&Channel=0"
             try:
-                response = self.session.get(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, proxies={"http": None, "https": None})
+                response = self.session.get(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
                 response.raise_for_status()
                 data = response.text.split("\r")
                 forward_value_line1 = next((int(line.split('=')[1]) for line in data if 'Channel.0.LineIndex.1.InCount' in line), 0)
@@ -72,8 +72,9 @@ class AI_HANWHA(Sensor):
         Reset sensor values"
         """
         url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=databasereset&action=control&IncludeDataType=PeopleCount"
+        response = None
         try:
-            response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, proxies={"http": None, "https": None})
+            response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
             response.raise_for_status()
             self.log_info(f"Sensor values reset successfully. Response: {response.status_code} | {response.text}")
             return True
@@ -86,8 +87,9 @@ class AI_HANWHA(Sensor):
         Reboot sensor
         """
         url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=power&action=control&Type=Restart"
+        response = None
         try:
-            response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, proxies={"http": None, "https": None})
+            response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
             response.raise_for_status()
             self.log_info(f"Sensor rebooted successfully. Response: {response.status_code} | {response.text}")
             return True

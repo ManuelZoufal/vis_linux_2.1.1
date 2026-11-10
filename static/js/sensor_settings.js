@@ -2,32 +2,56 @@ let currentSensorId = null;
 let sensors = [];
 let groups = [];
 
+// Server data is always inserted as text, never as HTML
+function createCell(content) {
+    const td = document.createElement('td');
+    if (content instanceof Node) {
+        td.appendChild(content);
+    } else {
+        td.textContent = content;
+    }
+    return td;
+}
+
+function appendCells(tr, values) {
+    values.forEach(value => tr.appendChild(createCell(value)));
+}
+
+function createButton(label, className, onClick) {
+    const button = document.createElement('button');
+    button.className = `button ${className}`;
+    button.textContent = label;
+    button.addEventListener('click', onClick);
+    return button;
+}
+
 async function fetchSensorData() {
     const response = await fetch('/api/get_data');
     const data = await response.json();
-    console.log(data);
 
     sensors = data.sensors;
     groups = data.groups;
     const sensorList = document.getElementById('sensor-list');
-    sensorList.innerHTML = '';
+    sensorList.replaceChildren();
     data.sensors.sort((a, b) => a.ip_address.localeCompare(b.ip_address)).forEach(sensor => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${sensor.name}</td>
-            <td>${sensor.ip_address || 'N/A'}</td>
-            <td>${sensor.occupancy || 0}</td>
-            <td>${sensor.group_id}</td>
-            <td>${sensor.type}</td>
-            <td>${sensor.datapoint_id}</td>
-            <td>
-                ${sensor.type === 'VIRTUAL' ? `<button class="button button-danger" onclick="deleteVirtualSensor('${sensor.sensor_id}')">Löschen</button>` : ''}
-                <button class="button button-secondary" onclick="openSensorModal('${sensor.sensor_id}')">Bearbeiten</button>
-                <button class="button button-secondary" onclick="openWebInterface('${sensor.sensor_id}', '${sensor.ip_address}')">Webinterface</button>
-                <button class="button button-warning" onclick="resetSensor('${sensor.sensor_id}')">Zählwerte zurücksetzen</button>
-                <button class="button button-warning" onclick="rebootSensor('${sensor.sensor_id}')">Neustarten</button>
-            </td>
-        `;
+        appendCells(tr, [sensor.name, sensor.ip_address || 'N/A', sensor.occupancy || 0, sensor.group_id,
+            sensor.type, sensor.datapoint_id]);
+
+        const actions = document.createElement('td');
+        if (sensor.type === 'VIRTUAL') {
+            actions.append(createButton('Löschen', 'button-danger', () => deleteVirtualSensor(sensor.sensor_id)), ' ');
+        }
+        actions.append(createButton('Bearbeiten', 'button-secondary', () => openSensorModal(sensor.sensor_id)));
+        if (sensor.type !== 'VIRTUAL') {
+            // A virtual sensor has no device that could be opened, reset or rebooted
+            actions.append(' ',
+                createButton('Webinterface', 'button-secondary', () => openWebInterface(sensor.ip_address)), ' ',
+                createButton('Zählwerte zurücksetzen', 'button-warning', () => resetSensor(sensor.sensor_id)), ' ',
+                createButton('Neustarten', 'button-warning', () => rebootSensor(sensor.sensor_id))
+            );
+        }
+        tr.appendChild(actions);
         sensorList.appendChild(tr);
     });
 }
@@ -36,7 +60,7 @@ function openSensorModal(sensorId) {
     currentSensorId = sensorId;
     const sensor = sensors.find(s => s.sensor_id === sensorId);
     const form = document.getElementById('sensorForm');
-    form.innerHTML = '';
+    form.replaceChildren();
     document.getElementById('sensorModalTitle').innerText = `Sensor Einstellungen für Sensor ${sensor.ip_address || 'N/A'}`;
     for (const [key, value] of Object.entries(sensor)) {
         if (key === 'timestamp' || key === 'forward_value' || key === 'backward_value') {
@@ -65,8 +89,13 @@ function openSensorModal(sensorId) {
             input.type = 'text';
             input.name = key;
             input.value = value;
-            if (key === 'ip_address' || key === 'sensor_id' || key === 'occupancy' || key === 'type') {
+            // The occupancy of a virtual sensor is entered by hand, all other sensors count themselves
+            const occupancyEditable = key === 'occupancy' && sensor.type === 'VIRTUAL';
+            if (key === 'ip_address' || key === 'sensor_id' || key === 'type' || (key === 'occupancy' && !occupancyEditable)) {
                 input.readOnly = true;
+            }
+            if (occupancyEditable) {
+                input.type = 'number';
             }
             formGroup.appendChild(label);
             formGroup.appendChild(input);
@@ -79,7 +108,7 @@ function openSensorModal(sensorId) {
 function openVirtualSensorModal() {
     document.getElementById('virtualSensorForm').reset();
     const groupSelect = document.getElementById('virtualSensorGroup');
-    groupSelect.innerHTML = '';
+    groupSelect.replaceChildren();
     groups.forEach(group => {
         const option = document.createElement('option');
         option.value = group.group_id;
@@ -101,7 +130,11 @@ async function saveSensorSettings() {
     formData.forEach((value, key) => {
         data[key] = value;
     });
-    const response = await fetch(`/api/sensors/${currentSensorId}/edit`, {
+    const sensor = sensors.find(s => s.sensor_id === currentSensorId);
+    const url = sensor && sensor.type === 'VIRTUAL'
+        ? `/api/sensors/virtual/${currentSensorId}/edit`
+        : `/api/sensors/${currentSensorId}/edit`;
+    const response = await fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -179,22 +212,13 @@ async function deleteVirtualSensor(sensorId) {
 }
 
 
-function openWebInterface(sensorId, ipAddress) {
+// Opens the web interface of the sensor directly in a new browser tab
+function openWebInterface(ipAddress) {
     if (!ipAddress || ipAddress === 'N/A') {
         alert('Webinterface nicht verfügbar – keine IP-Adresse konfiguriert.');
         return;
     }
-    const proxyUrl = `/api/sensors/${sensorId}/webinterface/`;
-    const directUrl = `https://${ipAddress}/`;
-    document.getElementById('webinterfaceModalTitle').innerText = `Webinterface – ${ipAddress}`;
-    document.getElementById('webinterfaceFrame').src = proxyUrl;
-    document.getElementById('webinterfaceExternalLink').href = directUrl;
-    document.getElementById('webinterfaceModal').style.display = 'block';
-}
-
-function closeWebInterfaceModal() {
-    document.getElementById('webinterfaceFrame').src = '';
-    document.getElementById('webinterfaceModal').style.display = 'none';
+    window.open(`https://${ipAddress}/`, '_blank', 'noopener');
 }
 
 
@@ -207,6 +231,4 @@ window.onclick = function(event) {
         const modal = document.getElementById(id);
         if (event.target === modal) modal.style.display = 'none';
     });
-    const webModal = document.getElementById('webinterfaceModal');
-    if (event.target === webModal) closeWebInterfaceModal();
 }

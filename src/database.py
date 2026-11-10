@@ -5,6 +5,8 @@ import time
 
 from werkzeug.security import generate_password_hash
 
+from src import thread_status
+
 def create_sensor_table(conn):
     """
     Create sensor_data table
@@ -97,16 +99,14 @@ def add_role(conn, role):
 def init_db():
     """
     Initialize database
-    
-    Creates sensor_data, users, roles and schedules tables
-    Inserts default roles into roles table
-    Inserts initial admin user into
-    users table
 
+    Creates sensor_data, users, roles and schedules tables if they do not exist
+    Inserts default roles into roles table
+    Inserts initial admin user into users table if it does not exist
+
+    Users and their passwords are kept across restarts. Only the sensor
+    values are cleared, because they are read again from the sensors.
     """
-    # Create sensor_data database, delete if already exists
-    if os.path.exists('sensor_data.db'):
-        os.remove('sensor_data.db')
     conn = sqlite3.connect('sensor_data.db')
 
     create_sensor_table(conn)
@@ -114,11 +114,15 @@ def init_db():
     create_roles_table(conn)
     create_schedules_table(conn)
 
+    # Remove sensor values of the previous run (e.g. of sensors no longer in config.json)
+    conn.execute('DELETE FROM sensor_data')
+    conn.commit()
+
     add_role(conn, 'Administrator')
     add_role(conn, 'Benutzer')
     add_role(conn, 'Betrachter')
 
-    # Insert initial admin user
+    # Insert initial admin user; an existing user with this name keeps its password
     hashed_password = generate_password_hash(os.environ.get("DEFAULT_ADMIN_PASSWORD", "admin123"), method='pbkdf2:sha256')
     cursor = conn.cursor()
     cursor.execute('INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)', (os.environ.get("DEFAULT_ADMIN_USER", "admin"), hashed_password, 'Administrator'))
@@ -228,6 +232,7 @@ def db_output_thread(interval):
         #for row in rows:
             #print(f"ID: {row['sensor_id']} | Name: {row['sensor_name']} | IP: {row['ip_address']} | Group: {row['group_id']} | Forward: {row['forward_value']} | Backward: {row['backward_value']} | Occupancy: {row['occupancy']} | Datapoint ID: {row['datapoint_id']} | Timestamp: {row['timestamp']}")
         conn.close()
+        thread_status.report_success(f"{len(rows)} Zeilen")
         time.sleep(interval)
 
 

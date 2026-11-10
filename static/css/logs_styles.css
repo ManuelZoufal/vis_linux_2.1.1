@@ -1,6 +1,6 @@
 @import url('base.css');
 
-.logs-section, .debug-section {
+.logs-section, .debug-section, .thread-section {
     background-color: #fff;
     padding: 20px;
     border-radius: 8px;
@@ -8,7 +8,7 @@
     margin-bottom: 20px;
 }
 
-.logs-section h2, .debug-section h2 {
+.logs-section h2, .debug-section h2, .thread-section h2 {
     text-align: center;
     margin-bottom: 20px;
 }
@@ -48,4 +48,41 @@ th {
 
 .button:hover {
     background-color: #0056b3;
+}
+
+.thread-summary {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.thread-summary.thread-summary-offline {
+    color: #b00020;
+    font-weight: bold;
+}
+
+.thread-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    color: #fff;
+}
+
+.thread-badge.state-ok { background-color: #2e7d32; }
+.thread-badge.state-error { background-color: #c62828; }
+.thread-badge.state-stale { background-color: #ef6c00; }
+.thread-badge.state-stopped { background-color: #6a1b9a; }
+.thread-badge.state-starting,
+.thread-badge.state-not_started { background-color: #757575; }
+
+.thread-error-time {
+    display: block;
+    color: #666;
+    font-size: 0.85em;
+}
+
+#thread-table td:nth-child(3),
+#thread-table .thread-error-time {
+    white-space: nowrap;
 }

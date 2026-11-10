@@ -7,6 +7,7 @@
 
 <div class="admin-section">
     <h2>Benutzerverwaltung</h2>
+    {% include "admin/_flash.html" %}
     <a href="{{ url_for('admin.add_user') }}" class="button button-primary">Neuen Benutzer hinzufügen</a>
     <table class="admin-table">
         <thead>

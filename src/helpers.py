@@ -1,9 +1,11 @@
 import socket
 from datetime import datetime
 from functools import wraps
-from flask import session, redirect, url_for
+from flask import session, redirect, url_for, jsonify, request
 
 import os
+
+from src.database import get_connection
 
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -37,20 +39,73 @@ def log_change(message):
         print(f"[LOG ERROR] Could not write to change_log.txt: {e}")
 
 
+def refresh_session_user():
+    """
+    Run before every request: take the role of the logged in user from the
+    database, so a changed role applies immediately, and end the session if
+    the user was deleted.
+    """
+    if 'user_id' not in session or request.endpoint == 'static':
+        return
+    conn = get_connection()
+    try:
+        user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    finally:
+        conn.close()
+    if user is None:
+        session.clear()
+    elif session.get('role') != user['role']:
+        session['role'] = user['role']
+
+
+def _role_allowed(role):
+    """
+    Check if the role of the logged in user matches
+
+    Args:
+    role (str | tuple | list | None): Allowed role(s), None allows every logged in user
+    """
+    if not role:
+        return True
+    allowed = (role,) if isinstance(role, str) else role
+    return session.get('role') in allowed
+
+
 def login_required(role=None):
     """
-    Decorator to check if user is logged in
-    
+    Decorator for pages: redirects to the login page if the user is not
+    logged in or does not have one of the allowed roles
+
     Args:
-    role (str, optional): Role to check for
+    role (str | tuple | list, optional): Allowed role(s)
     """
     def wrapper(fn):
         @wraps(fn)
         def decorated_view(*args, **kwargs):
             if 'user_id' not in session:
                 return redirect(url_for('admin.login'))
-            if role and session.get('role') != role:
+            if not _role_allowed(role):
                 return redirect(url_for('admin.login'))
+            return fn(*args, **kwargs)
+        return decorated_view
+    return wrapper
+
+
+def api_login_required(role=None):
+    """
+    Decorator for API routes: answers with JSON instead of a redirect
+    (401 if not logged in, 403 if the role is not allowed)
+
+    Args:
+    role (str | tuple | list, optional): Allowed role(s)
+    """
+    def wrapper(fn):
+        @wraps(fn)
+        def decorated_view(*args, **kwargs):
+            if 'user_id' not in session:
+                return jsonify({'status': 'error', 'message': 'Anmeldung erforderlich'}), 401
+            if not _role_allowed(role):
+                return jsonify({'status': 'error', 'message': 'Keine Berechtigung'}), 403
             return fn(*args, **kwargs)
         return decorated_view
     return wrapper

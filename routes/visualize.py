@@ -1,6 +1,6 @@
 from . import visualize_bp
 
-from src.helpers import allowed_file, get_marquee_text, UPLOAD_FOLDER, MARQUEE_TEXT_FILE
+from src.helpers import allowed_file, get_marquee_text, login_required, UPLOAD_FOLDER, MARQUEE_TEXT_FILE
 
 from flask import render_template, request, redirect, url_for, flash, jsonify
 from werkzeug.utils import secure_filename
@@ -14,6 +14,7 @@ def visualize():
 
 # /visualize/configure
 @visualize_bp.route('/configure', methods=['GET', 'POST'])
+@login_required(role=('Administrator', 'Benutzer'))
 def configure_visualization():
     """Render the configure visualization page"""
     if request.method == 'POST':
@@ -33,6 +34,7 @@ def configure_visualization():
 
 # /visualize/update_marquee
 @visualize_bp.route('/update_marquee', methods=['POST'])
+@login_required(role=('Administrator', 'Benutzer'))
 def update_marquee():
     """Update the marquee text"""
     marquee_text = request.form['marquee_text']

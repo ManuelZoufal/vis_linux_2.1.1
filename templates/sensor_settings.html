@@ -62,22 +62,6 @@
     </div>
 </div>
 
-<!-- Webinterface Modal -->
-<div id="webinterfaceModal" class="modal">
-    <div class="modal-content" style="width:90%;max-width:1200px;">
-        <span class="close" onclick="closeWebInterfaceModal()">&times;</span>
-        <h2 id="webinterfaceModalTitle">Sensor Webinterface</h2>
-        <div style="margin-bottom:8px;">
-            <a id="webinterfaceExternalLink" href="#" target="_blank" class="button button-secondary" style="font-size:0.9em;padding:6px 14px;">In neuem Tab öffnen</a>
-        </div>
-        <iframe id="webinterfaceFrame"
-                src=""
-                style="width:100%;height:70vh;border:1px solid #ddd;border-radius:4px;"
-                sandbox="allow-same-origin allow-scripts allow-forms allow-popups">
-        </iframe>
-    </div>
-</div>
-
 <script src="{{ url_for('static', filename='js/sensor_settings.js') }}"></script>
 {% endblock %}
 

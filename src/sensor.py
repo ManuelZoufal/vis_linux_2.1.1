@@ -1,9 +1,12 @@
 import json
+import logging
 import time
 
 from src.sensor_IEE import IEE
 from src.sensor_AIHANWHA import AI_HANWHA
 from src.database import save_sensor_values
+from src.config_store import load_config
+from src import thread_status
 
 def load_sensors_from_config(config_path):
     """
@@ -15,14 +18,19 @@ def load_sensors_from_config(config_path):
     Returns:
     list: List of sensors
     """
-    with open(config_path, 'r') as file:
-        config = json.load(file)
+    config = load_config(config_path)
     sensors = []
     for sensor_config in config['sensors']:
+        if sensor_config['type'] == 'VIRTUAL':
+            # Virtual sensors have no device: their occupancy is read from config.json
+            continue
         if sensor_config['type'] == 'IEE':
             sensor = IEE(sensor_config['sensor_id'], sensor_config['ip_address'], sensor_config['name'], sensor_config['group_id'], sensor_config['password'], sensor_config['datapoint_id'])
         elif sensor_config['type'] == 'AI_HANWHA':
             sensor = AI_HANWHA(sensor_config['sensor_id'], sensor_config['ip_address'], sensor_config['name'], sensor_config['group_id'], sensor_config['username'], sensor_config['password'], sensor_config['datapoint_id'])
+        else:
+            logging.error(f"Sensor {sensor_config.get('sensor_id')} skipped: unknown type {sensor_config['type']}")
+            continue
         sensors.append(sensor)
     return sensors
 
@@ -39,9 +47,12 @@ def sensor_thread(sensor, interval):
     """
     while True:
         try:
-            sensor.fetch_sensor_values()
-        except:
-            pass
+            if sensor.fetch_sensor_values():
+                thread_status.report_success()
+            else:
+                thread_status.report_error(sensor.last_error or "Abfrage fehlgeschlagen")
+        except Exception as e:
+            thread_status.report_error(f"{type(e).__name__}: {e}")
         time.sleep(interval)
 
 sensors = load_sensors_from_config('config.json')

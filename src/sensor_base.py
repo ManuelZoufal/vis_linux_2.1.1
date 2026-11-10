@@ -1,5 +1,8 @@
 import logging
 
+# (connect, read) timeout in seconds for all requests to a sensor
+REQUEST_TIMEOUT = (5, 30)
+
 
 class Sensor:
     def __init__(self, sensor_id, ip_address, name, sensor_type, group_id, datapoint_id):
@@ -24,6 +27,7 @@ class Sensor:
         self.forward_value = 0
         self.backward_value = 0
         self.occupancy = 0
+        self.last_error = None
 
     def log_info(self, message):
         """
@@ -41,6 +45,7 @@ class Sensor:
         Args:
         message (str): Message to log
         """
+        self.last_error = message
         logging.error(f"{self.name}: {message}")
 
     def fetch_sensor_values(self):
