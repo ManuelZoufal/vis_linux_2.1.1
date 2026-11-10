@@ -5,6 +5,18 @@ from src.database import get_connection
 
 from flask import render_template, request, redirect, url_for, flash, session
 from werkzeug.security import check_password_hash, generate_password_hash
+import sqlite3
+
+ROLES = ('Administrator', 'Benutzer', 'Betrachter')
+
+
+def _validate_user(username, role):
+    """Return a description of the first problem, None if username and role are valid"""
+    if not username:
+        return 'Der Benutzername darf nicht leer sein.'
+    if role not in ROLES:
+        return 'Unbekannte Rolle.'
+    return None
 
 # /admin
 @admin_bp.route('/', endpoint='index')
@@ -60,16 +72,28 @@ def manage_users():
 def add_user():
     """Add a new user"""
     if request.method == 'POST':
-        username = request.form['username']
-        hashed_password = generate_password_hash(request.form['password'], method='pbkdf2:sha256')
-        role = request.form['role']
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        role = request.form.get('role', '')
 
-        conn = get_connection()
-        conn.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', (username, hashed_password, role))
-        conn.commit()
-        conn.close()
+        error = _validate_user(username, role)
+        if not error and not password:
+            error = 'Das Passwort darf nicht leer sein.'
+        if not error:
+            conn = get_connection()
+            try:
+                conn.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+                             (username, generate_password_hash(password, method='pbkdf2:sha256'), role))
+                conn.commit()
+            except sqlite3.IntegrityError:
+                error = f'Der Benutzername „{username}“ ist bereits vergeben.'
+            finally:
+                conn.close()
+        if error:
+            flash(error, 'error')
+            return render_template('admin/add_user.html')
 
-        flash('User added successfully')
+        flash(f'Benutzer „{username}“ wurde angelegt.', 'success')
         return redirect(url_for('admin.manage_users'))
 
     return render_template('admin/add_user.html')
@@ -84,19 +108,28 @@ def edit_user(id):
     conn.close()
 
     if user is None:
-        flash('User not found')
+        flash('Benutzer nicht gefunden.', 'error')
         return redirect(url_for('admin.manage_users'))
 
     if request.method == 'POST':
-        username = request.form['username']
-        role = request.form['role']
+        username = request.form.get('username', '').strip()
+        role = request.form.get('role', '')
 
-        conn = get_connection()
-        conn.execute('UPDATE users SET username = ?, role = ? WHERE id = ?', (username, role, id))
-        conn.commit()
-        conn.close()
+        error = _validate_user(username, role)
+        if not error:
+            conn = get_connection()
+            try:
+                conn.execute('UPDATE users SET username = ?, role = ? WHERE id = ?', (username, role, id))
+                conn.commit()
+            except sqlite3.IntegrityError:
+                error = f'Der Benutzername „{username}“ ist bereits vergeben.'
+            finally:
+                conn.close()
+        if error:
+            flash(error, 'error')
+            return render_template('admin/edit_user.html', user=user)
 
-        flash('User updated successfully')
+        flash(f'Benutzer „{username}“ wurde aktualisiert.', 'success')
         return redirect(url_for('admin.manage_users'))
 
     return render_template('admin/edit_user.html', user=user)
@@ -111,32 +144,36 @@ def delete_user(id):
     conn.commit()
     conn.close()
 
-    flash('User deleted successfully')
+    flash('Benutzer wurde gelöscht.', 'success')
     return redirect(url_for('admin.manage_users'))
 
-# /admin/users/reset_password/<int:id>
+# /admin/users/reset_password/  (every logged in user changes the own password)
 @admin_bp.route('/users/reset_password/', methods=['POST'], endpoint='reset_password')
-@login_required(role='Administrator')
+@login_required()
 def reset_password():
-    if request.method == 'POST':
+    """Change the password of the logged in user"""
+    new_password = request.form.get('new_password', '')
+    if not new_password:
+        flash('Das neue Passwort darf nicht leer sein.', 'error')
+        return redirect(url_for('admin.change_password'))
+    if new_password != request.form.get('confirm_password', ''):
+        flash('Die neuen Passwörter stimmen nicht überein.', 'error')
+        return redirect(url_for('admin.change_password'))
 
-        if request.form['new_password'] != request.form['confirm_password']:
-            flash('New passwords do not match')
-            return redirect(url_for('admin.change_password'))
-
-        conn = get_connection()
+    conn = get_connection()
+    try:
         user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-
-        if not check_password_hash(user['password'], request.form['current_password']):
-            flash('Current password is incorrect')
+        if user is None or not check_password_hash(user['password'], request.form.get('current_password', '')):
+            flash('Das aktuelle Passwort ist falsch.', 'error')
             return redirect(url_for('admin.change_password'))
-        conn.execute('UPDATE users SET password = ? WHERE id = ?', (generate_password_hash(request.form['new_password'], method='pbkdf2:sha256'), session['user_id']))
+        conn.execute('UPDATE users SET password = ? WHERE id = ?',
+                     (generate_password_hash(new_password, method='pbkdf2:sha256'), session['user_id']))
         conn.commit()
+    finally:
         conn.close()
-        flash('Password changed successfully')
-        return render_template('admin/index.html')
 
-    return render_template('admin/change_password.html')
+    flash('Das Passwort wurde geändert.', 'success')
+    return redirect(url_for('admin.index'))
 
 # /admin/users/reset_password
 @admin_bp.route('/users/reset_password', methods=['GET'] ,endpoint='change_password')

@@ -117,6 +117,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.5 | Virtuelle Sensoren stören den Start nicht mehr und lassen sich bearbeiten (Name, Gruppe, Belegung); Gruppe löschen legt die Standardgruppe nur einmal an und verschiebt die Sensoren korrekt; Passwort ändern funktioniert für alle Rollen; ein doppelter Benutzername ergibt eine Meldung statt einer Fehlerseite; Meldungen werden auf allen Seiten der Benutzerverwaltung angezeigt |
 | 2.1.4 | Zeitpläne: Bearbeiten ändert den bestehenden Zeitplan statt einen neuen anzulegen; gelöschte und geänderte Zeitpläne wirken sofort statt erst nach einem Neustart; wöchentliche Zeitpläne funktionieren; Eingaben werden geprüft; ein fehlgeschlagener Sensor bricht die Aktion für die übrigen nicht mehr ab; Änderungen stehen im Änderungsprotokoll |
 | 2.1.3 | Anmeldepflicht für die schreibende API und die Visualisierungs-Konfiguration; Namen und Texte werden in der Oberfläche als Text statt als HTML eingesetzt; Webinterface-Proxy entfernt, der Knopf öffnet den Sensor in einem neuen Tab |
 | 2.1.2 | Live-Thread-Status unter „Logs“; Start ohne Debug-Modus und Reloader (ein Prozess); Pflichtwerte in `.env`; Benutzer und Passwörter bleiben über Neustarts erhalten; Timeouts für Sensorabfragen; Korrekturen an `update-settings` und am Lauftext |

@@ -17,6 +17,26 @@ import io
 import os
 
 
+
+def _virtual_sensor_values(data, current=None):
+    """
+    Read name, group and occupancy of a virtual sensor from request data
+
+    Returns:
+    tuple: (values, None) or (None, description of the problem)
+    """
+    current = current or {}
+    name = str(data.get('name', current.get('name', ''))).strip()
+    if not name:
+        return None, 'Der Name darf nicht leer sein'
+    group_id = str(data.get('group_id', current.get('group_id', '')))
+    try:
+        occupancy = int(data.get('occupancy', current.get('occupancy', 0)))
+    except (TypeError, ValueError):
+        return None, 'Die Belegung muss eine ganze Zahl sein'
+    return {'name': name, 'group_id': group_id, 'occupancy': occupancy}, None
+
+
 # /api
 @api_bp.route('/')
 def api_index():
@@ -651,10 +671,14 @@ def add_virtual_sensor():
                     type: string
                     example: Error message
     """
-    data = request.json
+    values, problem = _virtual_sensor_values(request.get_json(silent=True) or {})
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
     with open('config.json', 'r') as file:
         config = json.load(file)
-    
+    if not any(str(g['group_id']) == values['group_id'] for g in config['groups']):
+        return jsonify({'status': 'error', 'message': 'Gruppe nicht gefunden'}), 400
+
     # Find the next available integer for sensor_id
     existing_sensor_ids = [int(sensor['sensor_id']) for sensor in config['sensors']]
     next_sensor_id = max(existing_sensor_ids) + 1 if existing_sensor_ids else 1
@@ -662,13 +686,12 @@ def add_virtual_sensor():
     new_sensor = {
         "sensor_id": str(next_sensor_id),  # Use the next available integer
         "type": "VIRTUAL",
-        "name": data['name'],
-        "group_id": str(data['group_id']),
-        "occupancy": int(data['occupancy'])
+        **values
     }
     config['sensors'].append(new_sensor)
     with open('config.json', 'w') as file:
         json.dump(config, file, indent=4)
+    log_change(f"Virtual sensor {new_sensor['sensor_id']} added: name={new_sensor['name']}, group_id={new_sensor['group_id']}, occupancy={new_sensor['occupancy']}")
     return jsonify({'status': 'success', 'sensor': new_sensor}), 200
 
 # /api/sensors/virtual/<sensor_id>/edit
@@ -751,18 +774,23 @@ def edit_virtual_sensor(sensor_id):
                     type: string
                     example: Sensor not found or not virtual
     """
-    data = request.json
     with open('config.json', 'r') as file:
         config = json.load(file)
     sensor = next((s for s in config['sensors'] if s['sensor_id'] == sensor_id), None)
-    if sensor and sensor['type'] == 'VIRTUAL':
-        sensor['name'] = data.get('name', sensor['name'])
-        sensor['group_id'] = str(data.get('group_id', sensor['group_id']))
-        sensor['occupancy'] = data.get('occupancy', sensor['occupancy'])
-        with open('config.json', 'w') as file:
-            json.dump(config, file, indent=4)
-        return jsonify({'status': 'success', 'sensor': sensor}), 200
-    return jsonify({'status': 'error', 'message': 'Sensor not found or not virtual'}), 404
+    if not sensor or sensor['type'] != 'VIRTUAL':
+        return jsonify({'status': 'error', 'message': 'Sensor not found or not virtual'}), 404
+
+    values, problem = _virtual_sensor_values(request.get_json(silent=True) or {}, sensor)
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
+    if not any(str(g['group_id']) == values['group_id'] for g in config['groups']):
+        return jsonify({'status': 'error', 'message': 'Gruppe nicht gefunden'}), 400
+
+    sensor.update(values)
+    with open('config.json', 'w') as file:
+        json.dump(config, file, indent=4)
+    log_change(f"Virtual sensor {sensor_id} edited: name={sensor['name']}, group_id={sensor['group_id']}, occupancy={sensor['occupancy']}")
+    return jsonify({'status': 'success', 'sensor': sensor}), 200
 
 # /api/sensors/virtual/<sensor_id>/delete 
 @api_bp.route('/sensors/virtual/<sensor_id>/delete', methods=['DELETE'])
@@ -813,6 +841,7 @@ def delete_virtual_sensor(sensor_id):
         config['sensors'] = [s for s in config['sensors'] if s['sensor_id'] != sensor_id]
         with open('config.json', 'w') as file:
             json.dump(config, file, indent=4)
+        log_change(f"Virtual sensor {sensor_id} deleted")
         return jsonify({'status': 'success'}), 200
     return jsonify({'status': 'error', 'message': 'Sensor not found or not virtual'}), 404
 
@@ -1035,28 +1064,39 @@ def delete_group(group_id):
                     type: string
                     example: Group not found
     """
+    DEFAULT_GROUP_ID = '0'
     with open('config.json', 'r') as file:
         config = json.load(file)
-    group = next((g for g in config['groups'] if g['group_id'] == group_id), None)
-    if group:
-        for sensor in config['sensors']:
-            if sensor['group_id'] == group_id:
-                default_group = next((g for g in config['groups'] if g['group_id'] == '0'), None)
-                if not default_group:
-                    default_group = {
-                    "group_id": "0",
-                    "name": "Standardgruppe",
-                    "max_occupancy": 100,
-                    "welcome_text": "keine Gruppe zugeordnet",
-                    "maintenance_mode": False
-                }
-                config['groups'].append(default_group)
-                sensor['group_id'] = 0
-        config['groups'] = [g for g in config['groups'] if g['group_id'] != group_id]
-        with open('config.json', 'w') as file:
-            json.dump(config, file, indent=4)
-        return jsonify({'status': 'success'}), 200
-    return jsonify({'status': 'error', 'message': 'Group not found'}), 404
+    group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
+    if not group:
+        return jsonify({'status': 'error', 'message': 'Group not found'}), 404
+
+    assigned = [s for s in config['sensors'] if str(s['group_id']) == group_id]
+    if assigned and group_id == DEFAULT_GROUP_ID:
+        return jsonify({'status': 'error', 'message': 'Die Standardgruppe kann nicht gelöscht werden, solange ihr Sensoren zugeordnet sind'}), 400
+
+    if assigned:
+        # Sensors of the deleted group move to the default group, which is created once if missing
+        if not any(str(g['group_id']) == DEFAULT_GROUP_ID for g in config['groups']):
+            config['groups'].append({
+                "group_id": DEFAULT_GROUP_ID,
+                "name": "Standardgruppe",
+                "max_occupancy": 100,
+                "welcome_text": "keine Gruppe zugeordnet",
+                "maintenance_mode": False
+            })
+        for sensor_config in assigned:
+            sensor_config['group_id'] = DEFAULT_GROUP_ID
+        # Keep the polled sensor objects in sync, they write group_id to the database
+        for sensor in sensors:
+            if str(sensor.group_id) == group_id:
+                sensor.group_id = DEFAULT_GROUP_ID
+
+    config['groups'] = [g for g in config['groups'] if str(g['group_id']) != group_id]
+    with open('config.json', 'w') as file:
+        json.dump(config, file, indent=4)
+    log_change(f"Group {group_id} deleted: {len(assigned)} sensor(s) moved to group {DEFAULT_GROUP_ID}")
+    return jsonify({'status': 'success'}), 200
 
 # /api/groups/<group_id>/toggle_maintenance_mode
 @api_bp.route('/groups/<group_id>/toggle_maintenance_mode', methods=['POST'])

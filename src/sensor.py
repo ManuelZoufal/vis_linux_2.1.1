@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 
 from src.sensor_IEE import IEE
@@ -20,10 +21,16 @@ def load_sensors_from_config(config_path):
         config = json.load(file)
     sensors = []
     for sensor_config in config['sensors']:
+        if sensor_config['type'] == 'VIRTUAL':
+            # Virtual sensors have no device: their occupancy is read from config.json
+            continue
         if sensor_config['type'] == 'IEE':
             sensor = IEE(sensor_config['sensor_id'], sensor_config['ip_address'], sensor_config['name'], sensor_config['group_id'], sensor_config['password'], sensor_config['datapoint_id'])
         elif sensor_config['type'] == 'AI_HANWHA':
             sensor = AI_HANWHA(sensor_config['sensor_id'], sensor_config['ip_address'], sensor_config['name'], sensor_config['group_id'], sensor_config['username'], sensor_config['password'], sensor_config['datapoint_id'])
+        else:
+            logging.error(f"Sensor {sensor_config.get('sensor_id')} skipped: unknown type {sensor_config['type']}")
+            continue
         sensors.append(sensor)
     return sensors
 

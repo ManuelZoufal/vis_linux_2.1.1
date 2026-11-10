@@ -7,15 +7,7 @@
 
 <div class="admin-section">
     <h2>Login</h2>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="flash-messages">
-                {% for category, message in messages %}
-                    <div class="flash-message {{ category }}">{{ message }}</div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
+    {% include "admin/_flash.html" %}
     <form method="POST" class="admin-form admin-form-change-password">
         <div class="form-group">
             <label for="username">Benutzername:</label>

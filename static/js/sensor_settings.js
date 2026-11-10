@@ -42,12 +42,15 @@ async function fetchSensorData() {
         if (sensor.type === 'VIRTUAL') {
             actions.append(createButton('Löschen', 'button-danger', () => deleteVirtualSensor(sensor.sensor_id)), ' ');
         }
-        actions.append(
-            createButton('Bearbeiten', 'button-secondary', () => openSensorModal(sensor.sensor_id)), ' ',
-            createButton('Webinterface', 'button-secondary', () => openWebInterface(sensor.ip_address)), ' ',
-            createButton('Zählwerte zurücksetzen', 'button-warning', () => resetSensor(sensor.sensor_id)), ' ',
-            createButton('Neustarten', 'button-warning', () => rebootSensor(sensor.sensor_id))
-        );
+        actions.append(createButton('Bearbeiten', 'button-secondary', () => openSensorModal(sensor.sensor_id)));
+        if (sensor.type !== 'VIRTUAL') {
+            // A virtual sensor has no device that could be opened, reset or rebooted
+            actions.append(' ',
+                createButton('Webinterface', 'button-secondary', () => openWebInterface(sensor.ip_address)), ' ',
+                createButton('Zählwerte zurücksetzen', 'button-warning', () => resetSensor(sensor.sensor_id)), ' ',
+                createButton('Neustarten', 'button-warning', () => rebootSensor(sensor.sensor_id))
+            );
+        }
         tr.appendChild(actions);
         sensorList.appendChild(tr);
     });
@@ -86,8 +89,13 @@ function openSensorModal(sensorId) {
             input.type = 'text';
             input.name = key;
             input.value = value;
-            if (key === 'ip_address' || key === 'sensor_id' || key === 'occupancy' || key === 'type') {
+            // The occupancy of a virtual sensor is entered by hand, all other sensors count themselves
+            const occupancyEditable = key === 'occupancy' && sensor.type === 'VIRTUAL';
+            if (key === 'ip_address' || key === 'sensor_id' || key === 'type' || (key === 'occupancy' && !occupancyEditable)) {
                 input.readOnly = true;
+            }
+            if (occupancyEditable) {
+                input.type = 'number';
             }
             formGroup.appendChild(label);
             formGroup.appendChild(input);
@@ -122,7 +130,11 @@ async function saveSensorSettings() {
     formData.forEach((value, key) => {
         data[key] = value;
     });
-    const response = await fetch(`/api/sensors/${currentSensorId}/edit`, {
+    const sensor = sensors.find(s => s.sensor_id === currentSensorId);
+    const url = sensor && sensor.type === 'VIRTUAL'
+        ? `/api/sensors/virtual/${currentSensorId}/edit`
+        : `/api/sensors/${currentSensorId}/edit`;
+    const response = await fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
