@@ -36,6 +36,9 @@ venv/bin/pip install -r requirements.txt
    | `DEFAULT_ADMIN_PASSWORD` | Pflicht. Passwort des Administrators beim ersten Anlegen; ein später geändertes Passwort bleibt erhalten |
    | `DEFAULT_ADMIN_USER` | Benutzername des Administrators (Standard `admin`) |
    | `NAVIGATOR_USERNAME`, `NAVIGATOR_PASSWORD` | Zugangsdaten für Navigator; ohne sie findet kein Upload statt. Als Administrator auch in der Oberfläche unter „Navigator-Zugang“ änderbar; dafür muss der Benutzer, unter dem die Anwendung läuft, `.env` schreiben dürfen |
+   | `SENSOR_IEE_PASSWORD` | Passwort für alle IEE-Sensoren |
+   | `SENSOR_HANWHA_USERNAME`, `SENSOR_HANWHA_PASSWORD` | Zugangsdaten für alle Hanwha-Sensoren |
+   | `SENSOR_<ID>_USERNAME`, `SENSOR_<ID>_PASSWORD` | Abweichende Zugangsdaten eines einzelnen Sensors, z. B. `SENSOR_7_PASSWORD`; haben Vorrang vor dem Standard des Typs |
    | `LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCK_MINUTES` | Login-Sperre: nach so vielen Fehlversuchen (Standard 5) für einen Benutzernamen von einer Adresse sind weitere Versuche so viele Minuten (Standard 15) gesperrt. Ein Neustart hebt alle Sperren auf |
    | `APP_TIMEZONE` | Zeitzone für angezeigte Zeitstempel (Standard `Europe/Berlin`) |
    | `APP_PORT` | Port des Webservers (Standard 5000) |
@@ -46,7 +49,9 @@ venv/bin/pip install -r requirements.txt
 
    Fehlt `APP_SECRET_KEY` oder `DEFAULT_ADMIN_PASSWORD`, bricht der Start mit einer Meldung ab.
 
-2. In `config.json` die IP-Adressen und Zugangsdaten der Sensoren eintragen.
+2. In `config.json` die IP-Adressen der Sensoren eintragen. Die Zugangsdaten der Sensoren gehören in die `.env`
+   (siehe Tabelle) oder werden als Administrator unter „Sensor-Zugang“ gepflegt. Die Felder `username` und `password`
+   in `config.json` werden weiterhin gelesen, wenn in der `.env` nichts hinterlegt ist.
 
 3. Zertifikat und Schlüssel des Webservers als `Webserver_IP.crt` und `Webserver_IP.pem`
    im Programmverzeichnis ablegen.
@@ -119,6 +124,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.11 | Sensor-Zugangsdaten in `.env` statt in `config.json`: Standard je Sensortyp (`SENSOR_IEE_PASSWORD`, `SENSOR_HANWHA_USERNAME`, `SENSOR_HANWHA_PASSWORD`) und Einzelwerte je Sensor (`SENSOR_<ID>_USERNAME`, `SENSOR_<ID>_PASSWORD`); Seite „Sensor-Zugang“ zum Ändern, Prüfen und zum Übernehmen der alten Werte aus `config.json` |
 | 2.1.10 | Abschnitt „Debug-Informationen“ unter „Logs“ entfernt (zeigte nur „is active“ je Thread, die Angabe „inactive“ konnte nie erscheinen); stattdessen lässt sich der Thread-Status als Textdatei exportieren |
 | 2.1.9 | Navigator: ein Token wird für alle Uploads wiederverwendet statt für jeden Sensor neu angefordert; Sensoren ohne Datenpunkt werden übersprungen; Platzhalterbild für den Wartungsmodus (`static/images/maintenance.png`) |
 | 2.1.8 | Chart.js wird lokal aus `static/vendor/` ausgeliefert statt vom CDN: die Belegungsanzeige funktioniert ohne Internetzugang des Anzeigegeräts |

@@ -3,10 +3,14 @@ from . import admin_bp
 from src.helpers import login_required, log_change
 from src.navigator import create_OAUTH_token
 from src import login_guard
+from src import sensor_credentials as credentials
+from src.sensor import sensors as sensor_objects
+from src.config_store import load_config, save_config, config_lock
 from src.database import get_connection
 
 from flask import render_template, request, redirect, url_for, flash, session, current_app
-from dotenv import set_key
+from dotenv import set_key, unset_key
+from concurrent.futures import ThreadPoolExecutor
 import os
 from werkzeug.security import check_password_hash, generate_password_hash
 import sqlite3
@@ -280,3 +284,197 @@ def navigator_credentials():
         username=os.environ.get('NAVIGATOR_USERNAME', ''),
         password_set=bool(os.environ.get('NAVIGATOR_PASSWORD')),
     )
+
+
+def _write_env(set_values, remove_keys=()):
+    """
+    Write values to the .env file and to the environment of the running process
+
+    Args:
+    set_values (dict): Variable name -> value
+    remove_keys (iterable): Variable names to delete
+
+    Raises:
+    OSError: If the .env file cannot be written
+    """
+    env_path = os.path.join(current_app.root_path, '.env')
+    for key, value in set_values.items():
+        set_key(env_path, key, value, quote_mode='always')
+        os.environ[key] = value
+    for key in remove_keys:
+        if os.path.exists(env_path):
+            unset_key(env_path, key, quote_mode='always')
+        os.environ.pop(key, None)
+
+
+SOURCE_LABELS = {
+    credentials.SOURCE_SENSOR: 'Einzelwert (.env)',
+    credentials.SOURCE_TYPE: 'Standard des Typs (.env)',
+    credentials.SOURCE_CONFIG: 'config.json (alt)',
+    credentials.SOURCE_MISSING: 'fehlt',
+}
+# Shown source of a sensor: the least favourable one of its fields
+SOURCE_ORDER = (credentials.SOURCE_MISSING, credentials.SOURCE_CONFIG, credentials.SOURCE_SENSOR, credentials.SOURCE_TYPE)
+TYPE_LABELS = {'IEE': 'IEE', 'AI_HANWHA': 'Hanwha'}
+
+
+def _physical_sensors(config):
+    return [s for s in config['sensors'] if s.get('type') in credentials.FIELDS_BY_TYPE]
+
+
+def _check_all_sensors():
+    """Check the credentials of all sensors in parallel and report the result as flash messages"""
+    if not sensor_objects:
+        return
+    with ThreadPoolExecutor(max_workers=len(sensor_objects)) as pool:
+        results = list(pool.map(lambda sensor: (sensor, *sensor.check_credentials()), sensor_objects))
+    failed = [(sensor, message) for sensor, ok, message in results if not ok]
+    if failed:
+        flash(f'Prüfung: {len(results) - len(failed)} von {len(results)} Sensoren haben die Zugangsdaten akzeptiert.', 'error')
+        for sensor, message in failed:
+            flash(f'Sensor {sensor.sensor_id} ({sensor.name}): {message}', 'error')
+    else:
+        flash(f'Prüfung erfolgreich: alle {len(results)} Sensoren haben die Zugangsdaten akzeptiert.', 'success')
+
+
+# /admin/sensor_credentials
+@admin_bp.route('/sensor_credentials', methods=['GET', 'POST'], endpoint='sensor_credentials')
+@login_required(role='Administrator')
+def sensor_credentials_page():
+    """
+    Show and change the credentials of the sensors
+
+    Values are written to the .env file, applied to the running sensor objects
+    and never sent to the browser (passwords) or written to the change log.
+    """
+    if request.method == 'POST':
+        action = request.form.get('action')
+        try:
+            if action == 'migrate':
+                _migrate_from_config()
+            else:
+                _save_credentials_form()
+                if action == 'save_and_test':
+                    _check_all_sensors()
+        except OSError as e:
+            flash(f'Die Datei .env konnte nicht geschrieben werden: {e}', 'error')
+        return redirect(url_for('admin.sensor_credentials'))
+
+    config = load_config()
+    physical = _physical_sensors(config)
+    types = []
+    for sensor_type, fields in credentials.FIELDS_BY_TYPE.items():
+        key = credentials.TYPE_KEYS[sensor_type]
+        types.append({
+            'key': key,
+            'label': TYPE_LABELS.get(sensor_type, sensor_type),
+            'has_username': 'username' in fields,
+            'username': os.environ.get(credentials.type_env_key(sensor_type, 'username'), '') if 'username' in fields else '',
+            'password_set': bool(os.environ.get(credentials.type_env_key(sensor_type, 'password'))),
+            'count': sum(1 for s in physical if s['type'] == sensor_type),
+        })
+    rows = []
+    for sensor_config in physical:
+        resolved = credentials.resolve(sensor_config)
+        sources = {source for _value, source in resolved.values()}
+        source = next(s for s in SOURCE_ORDER if s in sources)
+        own_username = os.environ.get(credentials.sensor_env_key(sensor_config['sensor_id'], 'username'), '')
+        own_password = bool(os.environ.get(credentials.sensor_env_key(sensor_config['sensor_id'], 'password')))
+        rows.append({
+            'sensor_id': sensor_config['sensor_id'],
+            'name': sensor_config.get('name', ''),
+            'type': TYPE_LABELS.get(sensor_config['type'], sensor_config['type']),
+            'has_username': 'username' in resolved,
+            'username': own_username if 'username' in resolved else '',
+            'password_set': own_password,
+            'has_own': bool(own_username) or own_password,
+            'source': source,
+            'source_label': SOURCE_LABELS[source],
+        })
+    legacy_count = sum(1 for s in physical if any(source == credentials.SOURCE_CONFIG for _v, source in credentials.resolve(s).values()))
+    return render_template('admin/sensor_credentials.html', types=types, sensors=rows, legacy_count=legacy_count)
+
+
+def _save_credentials_form():
+    """Apply the submitted form: type defaults and values of single sensors"""
+    config = load_config()
+    physical = _physical_sensors(config)
+    set_values, remove_keys, changed = {}, [], []
+
+    for sensor_type, fields in credentials.FIELDS_BY_TYPE.items():
+        key = credentials.TYPE_KEYS[sensor_type]
+        if 'username' in fields:
+            env_key = credentials.type_env_key(sensor_type, 'username')
+            username = request.form.get(f'type_{key}_username', '').strip()
+            if username and username != os.environ.get(env_key):
+                set_values[env_key] = username
+                changed.append(f'{key} username')
+            elif not username and os.environ.get(env_key):
+                remove_keys.append(env_key)
+                changed.append(f'{key} username removed')
+        password = request.form.get(f'type_{key}_password', '')
+        if password:
+            set_values[credentials.type_env_key(sensor_type, 'password')] = password
+            changed.append(f'{key} password')
+
+    for sensor_config in physical:
+        sensor_id = sensor_config['sensor_id']
+        fields = credentials.FIELDS_BY_TYPE[sensor_config['type']]
+        own_keys = [credentials.sensor_env_key(sensor_id, field) for field in fields]
+        if request.form.get(f'sensor_{sensor_id}_clear'):
+            present = [k for k in own_keys if os.environ.get(k)]
+            if present:
+                remove_keys.extend(present)
+                changed.append(f'sensor {sensor_id} own values removed')
+            continue
+        if 'username' in fields:
+            env_key = credentials.sensor_env_key(sensor_id, 'username')
+            username = request.form.get(f'sensor_{sensor_id}_username', '').strip()
+            if username and username != os.environ.get(env_key):
+                set_values[env_key] = username
+                changed.append(f'sensor {sensor_id} username')
+            elif not username and os.environ.get(env_key):
+                remove_keys.append(env_key)
+                changed.append(f'sensor {sensor_id} username removed')
+        password = request.form.get(f'sensor_{sensor_id}_password', '')
+        if password:
+            set_values[credentials.sensor_env_key(sensor_id, 'password')] = password
+            changed.append(f'sensor {sensor_id} password')
+
+    if not changed:
+        flash('Keine Änderungen.', 'success')
+        return
+    _write_env(set_values, remove_keys)
+    credentials.apply_to_sensors(sensor_objects, config)
+    log_change(f"Sensor credentials changed ({', '.join(changed)}) by user id {session.get('user_id')}")
+    flash(f'Sensor-Zugangsdaten gespeichert ({len(changed)} Änderung(en)).', 'success')
+
+
+def _migrate_from_config():
+    """Move the credentials still stored in config.json to .env and remove them from config.json"""
+    with config_lock:
+        config = load_config()
+        physical = _physical_sensors(config)
+        before = {s['sensor_id']: {f: v for f, (v, _src) in credentials.resolve(s).items()} for s in physical}
+        new_values = credentials.plan_migration(config)
+
+        # Check first, change nothing yet: every sensor must get the same credentials without config.json
+        simulated_env = {**os.environ, **new_values}
+        stripped = {'sensors': [dict(s) for s in config['sensors']]}
+        credentials.strip_from_config(stripped)
+        after = {s['sensor_id']: {f: v for f, (v, _src) in credentials.resolve(s, simulated_env).items()}
+                 for s in _physical_sensors(stripped)}
+        # Compare what was configured before; a sensor without credentials may gain the type default
+        unchanged = all(after.get(sensor_id, {}).get(field) == value
+                        for sensor_id, fields in before.items() for field, value in fields.items() if value)
+        if not unchanged:
+            flash('Übernahme abgebrochen: Die Zugangsdaten wären danach nicht für alle Sensoren identisch. Es wurde nichts geändert.', 'error')
+            return
+
+        _write_env(new_values)                     # 1. .env (raises OSError before config.json is touched)
+        removed = credentials.strip_from_config(config)
+        save_config(config)                        # 2. config.json
+        credentials.apply_to_sensors(sensor_objects, config)
+
+    log_change(f"Sensor credentials moved from config.json to .env ({removed} sensors, {len(new_values)} variables) by user id {session.get('user_id')}")
+    flash(f'Zugangsdaten von {removed} Sensor(en) aus config.json in die .env übernommen ({len(new_values)} Variable(n)).', 'success')

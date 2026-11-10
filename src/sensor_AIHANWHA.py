@@ -96,5 +96,24 @@ class AI_HANWHA(Sensor):
         except requests.RequestException as e:
             self.log_error(f"Error rebooting sensor: {e}. Response: {response.text if response else 'No response'}")
             return False
-        
-    
+
+    def check_credentials(self):
+        """
+        Check user name and password with a read-only request
+
+        Returns:
+        tuple: (bool, str) - success and a short description
+        """
+        if not self.username or not self.password:
+            return False, "Benutzername oder Passwort nicht hinterlegt"
+        url = f"http://{self.ip_address}/stw-cgi/eventsources.cgi?msubmenu=peoplecount&action=check&Channel=0"
+        try:
+            # A new connection without the session, so cached authentication cannot hide a wrong password
+            response = requests.get(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
+        except RequestException as e:
+            return False, f"Sensor nicht erreichbar ({type(e).__name__})"
+        if response.status_code in (401, 403):
+            return False, f"Anmeldung abgelehnt (HTTP {response.status_code})"
+        if not response.ok:
+            return False, f"Unerwartete Antwort (HTTP {response.status_code})"
+        return True, "Anmeldung erfolgreich"
