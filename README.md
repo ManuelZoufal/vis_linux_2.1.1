@@ -160,6 +160,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.13 | Eingaben bei Gruppen und beim Bearbeiten von Sensoren werden geprüft (Meldung statt Fehlerseite); maximale Belegung wird als Zahl gespeichert; Sensoren, Gruppen und IP-Adressen sortieren numerisch; beim Löschen einer Gruppe werden ihre Bilder entfernt; der Datenpunkt eines noch nie erreichten Sensors geht beim Bearbeiten nicht mehr verloren; Fehlertexte enthalten bei HTTP-Fehlern die Antwort des Sensors |
 | 2.1.12 | Ablaufdatum des Zertifikats unter „Logs“, im Export und als Hinweis für Administratoren ab 30 Tagen vor Ablauf (`CERT_WARN_DAYS`); Zertifikat und Schlüssel sind nicht mehr Teil des Repositorys |
 | 2.1.11 | Sensor-Zugangsdaten in `.env` statt in `config.json`: Standard je Sensortyp (`SENSOR_IEE_PASSWORD`, `SENSOR_HANWHA_USERNAME`, `SENSOR_HANWHA_PASSWORD`) und Einzelwerte je Sensor (`SENSOR_<ID>_USERNAME`, `SENSOR_<ID>_PASSWORD`); Seite „Sensor-Zugang“ zum Ändern, Prüfen und zum Übernehmen der alten Werte aus `config.json` |
 | 2.1.10 | Abschnitt „Debug-Informationen“ unter „Logs“ entfernt (zeigte nur „is active“ je Thread, die Angabe „inactive“ konnte nie erscheinen); stattdessen lässt sich der Thread-Status als Textdatei exportieren |

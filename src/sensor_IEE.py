@@ -44,7 +44,7 @@ class IEE(Sensor):
             self.log_info(f"Sensor values fetched successfully for sensor {self.name}, Response: {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error fetching sensor values: {e}. Response: {response.text if response else 'No response'}")
+            self.log_error(f"Error fetching sensor values: {e}. Response: {response.text if response is not None else 'No response'}")
             return False
         
     def reset_sensor_values(self):
@@ -63,7 +63,7 @@ class IEE(Sensor):
                 self.log_info(f"Sensor values reset successfully. Response: {response.text}")
                 return True
             except requests.RequestException as e:
-                self.log_error(f"Error resetting sensor values: {e}. Response: {response.text if response else 'No response'}")
+                self.log_error(f"Error resetting sensor values: {e}. Response: {response.text if response is not None else 'No response'}")
                 return False
             finally:
                 self._logout()
@@ -85,7 +85,7 @@ class IEE(Sensor):
                 self.log_info(f"Sensor rebooted successfully. Response: {response.text}")
                 return True
             except requests.RequestException as e:
-                self.log_error(f"Error rebooting sensor: {e}. Response: {response.text if response else 'No response'}")
+                self.log_error(f"Error rebooting sensor: {e}. Response: {response.text if response is not None else 'No response'}")
                 return False
             finally:
                 self._logout()
@@ -106,7 +106,7 @@ class IEE(Sensor):
             self.log_info(f"Authenticated successfully. Response: {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error during authentication: {e}. Response: {response.text if response else 'No response'}")
+            self.log_error(f"Error during authentication: {e}. Response: {response.text if response is not None else 'No response'}")
             return False
         
     def _logout(self):
@@ -124,7 +124,7 @@ class IEE(Sensor):
             self.log_info(f"Logged out successfully. Response: {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error during logout: {e}. Response: {response.text if response else 'No response'}")
+            self.log_error(f"Error during logout: {e}. Response: {response.text if response is not None else 'No response'}")
             return False
 
     def check_credentials(self):

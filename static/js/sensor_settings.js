@@ -33,7 +33,7 @@ async function fetchSensorData() {
     groups = data.groups;
     const sensorList = document.getElementById('sensor-list');
     sensorList.replaceChildren();
-    data.sensors.sort((a, b) => a.ip_address.localeCompare(b.ip_address)).forEach(sensor => {
+    data.sensors.sort((a, b) => String(a.ip_address).localeCompare(String(b.ip_address), undefined, { numeric: true })).forEach(sensor => {
         const tr = document.createElement('tr');
         appendCells(tr, [sensor.name, sensor.ip_address || 'N/A', sensor.occupancy || 0, sensor.group_id,
             sensor.type, sensor.datapoint_id]);
@@ -142,11 +142,13 @@ async function saveSensorSettings() {
         body: JSON.stringify(data)
     });
     if (response.ok) {
-        alert('Sensor updated successfully');
+        alert('Sensor erfolgreich gespeichert');
         fetchSensorData();
         closeModal('sensorModal');
     } else {
-        alert('Failed to update sensor');
+        let message = `HTTP ${response.status}`;
+        try { message = (await response.json()).message || message; } catch (_) {}
+        alert('Fehler beim Speichern des Sensors: ' + message);
     }
 }
 

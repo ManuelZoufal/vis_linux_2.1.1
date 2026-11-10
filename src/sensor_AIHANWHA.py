@@ -79,7 +79,7 @@ class AI_HANWHA(Sensor):
             self.log_info(f"Sensor values reset successfully. Response: {response.status_code} | {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error resetting sensor values: {e}. Response: {response.text if response else 'No response'}")
+            self.log_error(f"Error resetting sensor values: {e}. Response: {response.text if response is not None else 'No response'}")
             return False
         
     def reboot_sensor(self):
@@ -94,7 +94,7 @@ class AI_HANWHA(Sensor):
             self.log_info(f"Sensor rebooted successfully. Response: {response.status_code} | {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error rebooting sensor: {e}. Response: {response.text if response else 'No response'}")
+            self.log_error(f"Error rebooting sensor: {e}. Response: {response.text if response is not None else 'No response'}")
             return False
 
     def check_credentials(self):

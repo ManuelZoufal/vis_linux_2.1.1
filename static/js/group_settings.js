@@ -33,7 +33,7 @@ async function fetchGroupData() {
     sensors = data.sensors;
     const groupList = document.getElementById('group-list');
     groupList.replaceChildren();
-    data.groups.sort((a, b) => String(a.group_id).localeCompare(String(b.group_id))).forEach(group => {
+    data.groups.sort((a, b) => String(a.group_id).localeCompare(String(b.group_id), undefined, { numeric: true })).forEach(group => {
         const currentOccupancy = calculateCurrentOccupancy(group.group_id, data.sensors);
         const occupancyPercentage = calculateOccupancyPercentage(currentOccupancy, group.max_occupancy);
         const tr = document.createElement('tr');
@@ -114,7 +114,9 @@ async function saveGroupSettings() {
         fetchGroupData();
         closeModal('groupModal');
     } else {
-        alert('Fehler beim Speichern der Gruppe');
+        let message = `HTTP ${response.status}`;
+        try { message = (await response.json()).message || message; } catch (_) {}
+        alert('Fehler beim Speichern der Gruppe: ' + message);
     }
 }
 
@@ -126,7 +128,9 @@ async function deleteGroup(groupId) {
         alert('Gruppe erfolgreich gelöscht');
         fetchGroupData();
     } else {
-        alert('Fehler beim Löschen der Gruppe');
+        let message = `HTTP ${response.status}`;
+        try { message = (await response.json()).message || message; } catch (_) {}
+        alert('Fehler beim Löschen der Gruppe: ' + message);
     }
 }
 

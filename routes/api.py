@@ -37,6 +37,46 @@ def _display_timezone():
 DISPLAY_TIMEZONE = _display_timezone()
 
 
+def _group_values(data, current=None):
+    """
+    Read and check the settings of a group from request data
+
+    Args:
+    data (dict): Request data
+    current (dict, optional): Existing group, its values are kept for fields missing in data
+
+    Returns:
+    tuple: (values, None) or (None, description of the problem)
+    """
+    current = current or {}
+    name = str(data.get('name', current.get('name', '')) or '').strip()
+    if not name:
+        return None, 'Der Name darf nicht leer sein'
+    try:
+        max_occupancy = int(data.get('max_occupancy', current.get('max_occupancy')))
+    except (TypeError, ValueError):
+        return None, 'Die maximale Belegung muss eine ganze Zahl sein'
+    if max_occupancy < 0:
+        return None, 'Die maximale Belegung darf nicht negativ sein'
+    maintenance_mode = data.get('maintenance_mode', current.get('maintenance_mode', False))
+    if not isinstance(maintenance_mode, bool):
+        return None, 'Der Wartungsmodus muss true oder false sein'
+    welcome_text = str(data.get('welcome_text', current.get('welcome_text', '')) or '')
+    return {'name': name, 'max_occupancy': max_occupancy, 'welcome_text': welcome_text,
+            'maintenance_mode': maintenance_mode}, None
+
+
+def _remove_display_images(group):
+    """Delete the display image files of a group from the upload folder"""
+    upload_folder = _upload_folder()
+    for filename in group.get('display_images') or []:
+        if not filename:
+            continue
+        path = os.path.join(upload_folder, os.path.basename(filename))  # never leave the upload folder
+        if os.path.isfile(path):
+            os.remove(path)
+
+
 def _virtual_sensor_values(data, current=None):
     """
     Read name, group and occupancy of a virtual sensor from request data
@@ -192,7 +232,7 @@ def get_data():
         'occupancy': next((row[2] for row in db_data if row[0] == sensor['sensor_id']), sensor.get('occupancy', 0)),
         'forward_value': next((row[3] for row in db_data if row[0] == sensor['sensor_id']), 0),
         'backward_value': next((row[4] for row in db_data if row[0] == sensor['sensor_id']), 0),
-        'datapoint_id': next((row[5] for row in db_data if row[0] == sensor['sensor_id']), "N/A"),
+        'datapoint_id': sensor.get('datapoint_id') or 'N/A',
         'timestamp': next((row[6] for row in db_data if row[0] == sensor['sensor_id']), 'N/A'),
         'type': sensor['type']
     } for sensor in config['sensors']]
@@ -574,24 +614,35 @@ def edit_sensor(sensor_id):
                     example: Sensor not found
     """
     sensor = next((s for s in sensors if s.sensor_id == sensor_id), None)
-    if sensor:
-        data = request.json
-        sensor.name = data.get('name', sensor.name)
-        sensor.group_id = data.get('group_id', sensor.group_id)
-        sensor.datapoint_id = data.get('datapoint_id', sensor.datapoint_id)
-        # Save changes to config file
-        config = load_config()
-        for sensor_config in config['sensors']:
-            if sensor_config['sensor_id'] == sensor_id:
-                sensor_config['name'] = sensor.name
-                sensor_config['group_id'] = sensor.group_id
-                sensor_config['datapoint_id'] = sensor.datapoint_id
-                break
-        save_config(config)
-        log_change(f"Sensor {sensor_id} edited: name={sensor.name}, group_id={sensor.group_id}, datapoint_id={sensor.datapoint_id}")
-        save_sensor_values(sensor)
-        return jsonify({'status': 'success'}), 200
-    return jsonify({'status': 'error', 'message': 'Sensor not found'}), 404
+    if not sensor:
+        return jsonify({'status': 'error', 'message': 'Sensor not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    config = load_config()
+    name = str(data.get('name', sensor.name) or '').strip()
+    if not name:
+        return jsonify({'status': 'error', 'message': 'Der Name darf nicht leer sein'}), 400
+    group_id = str(data.get('group_id', sensor.group_id))
+    if not any(str(g['group_id']) == group_id for g in config['groups']):
+        return jsonify({'status': 'error', 'message': 'Gruppe nicht gefunden'}), 400
+    datapoint_id = str(data.get('datapoint_id', sensor.datapoint_id) or '').strip()
+    if datapoint_id.upper() == 'N/A':
+        datapoint_id = ''  # "N/A" is what the user interface shows for a missing datapoint
+
+    # Only now change the sensor object, so a rejected request leaves it untouched
+    sensor.name = name
+    sensor.group_id = group_id
+    sensor.datapoint_id = datapoint_id
+    for sensor_config in config['sensors']:
+        if sensor_config['sensor_id'] == sensor_id:
+            sensor_config['name'] = name
+            sensor_config['group_id'] = group_id
+            sensor_config['datapoint_id'] = datapoint_id
+            break
+    save_config(config)
+    log_change(f"Sensor {sensor_id} edited: name={sensor.name}, group_id={sensor.group_id}, datapoint_id={sensor.datapoint_id}")
+    save_sensor_values(sensor)
+    return jsonify({'status': 'success'}), 200
 
 # /api/sensors/virtual/add
 @api_bp.route('/sensors/virtual/add', methods=['PUT'])
@@ -909,22 +960,22 @@ def add_group():
                     type: string
                     example: Error message
     """
-    data = request.json
+    values, problem = _group_values(request.get_json(silent=True) or {})
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
     config = load_config()
-    
+
     # Find the next available integer for group_id
     existing_group_ids = [int(group['group_id']) for group in config['groups']]
     next_group_id = max(existing_group_ids) + 1 if existing_group_ids else 1
 
     new_group = {
         "group_id": str(next_group_id),  # Use the next available integer
-        "name": data['name'],
-        "max_occupancy": data['max_occupancy'],
-        "welcome_text": data['welcome_text'],
-        "maintenance_mode": data.get('maintenance_mode', False)
+        **values
     }
     config['groups'].append(new_group)
     save_config(config)
+    log_change(f"Group {new_group['group_id']} added: name={new_group['name']}, max_occupancy={new_group['max_occupancy']}")
     return jsonify({'status': 'success', 'group': new_group}), 200
 
 # /api/groups/<group_id>/edit
@@ -993,21 +1044,18 @@ def edit_group(group_id):
                     type: string
                     example: Group not found
     """
-    data = request.json
     config = load_config()
-    
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
-    if group:
-        group['name'] = data.get('name', group['name'])
-        group['welcome_text'] = data.get('welcome_text', group['welcome_text'])
-        group['max_occupancy'] = data.get('max_occupancy', group['max_occupancy'])
-        group['maintenance_mode'] = data.get('maintenance_mode', group.get('maintenance_mode', False))
-        
-        save_config(config)
-        
-        log_change(f"Group {group_id} edited: name={group['name']}, welcome_text={group['welcome_text']}, max_occupancy={group['max_occupancy']}, maintenance_mode={group['maintenance_mode']}")
-        return jsonify({'status': 'success'}), 200
-    return jsonify({'status': 'error', 'message': 'Group not found'}), 404
+    if not group:
+        return jsonify({'status': 'error', 'message': 'Group not found'}), 404
+    values, problem = _group_values(request.get_json(silent=True) or {}, group)
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
+
+    group.update(values)
+    save_config(config)
+    log_change(f"Group {group_id} edited: name={group['name']}, welcome_text={group['welcome_text']}, max_occupancy={group['max_occupancy']}, maintenance_mode={group['maintenance_mode']}")
+    return jsonify({'status': 'success'}), 200
 
 # /api/groups/<group_id>/delete
 @api_bp.route('/groups/<group_id>/delete', methods=['DELETE'])
@@ -1081,6 +1129,7 @@ def delete_group(group_id):
 
     config['groups'] = [g for g in config['groups'] if str(g['group_id']) != group_id]
     save_config(config)
+    _remove_display_images(group)
     log_change(f"Group {group_id} deleted: {len(assigned)} sensor(s) moved to group {DEFAULT_GROUP_ID}")
     return jsonify({'status': 'success'}), 200
 
@@ -1138,7 +1187,9 @@ def toggle_maintenance_mode(group_id):
                     type: string
                     example: Group not found
     """
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data.get('maintenance_mode'), bool):
+        return jsonify({'status': 'error', 'message': 'Der Wartungsmodus muss true oder false sein'}), 400
     config = load_config()
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
     if group:
@@ -1214,18 +1265,17 @@ def update_group_settings(group_id):
                     type: string
                     example: Group not found
     """
-    data = request.json
     config = load_config()
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
     if not group:
         return jsonify({'status': 'error', 'message': 'Group not found'}), 404
-    group['name'] = data.get('name', group['name'])
-    group['max_occupancy'] = data.get('max_occupancy', group['max_occupancy'])
-    group['welcome_text'] = data.get('welcome_text', group['welcome_text'])
-    group['maintenance_mode'] = data.get('maintenance_mode', group.get('maintenance_mode', False))
+    values, problem = _group_values(request.get_json(silent=True) or {}, group)
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
 
+    group.update(values)
     save_config(config)
-    log_change(f"Group {group_id} settings updated: name={data.get('name')}, max_occupancy={data.get('max_occupancy')}, welcome_text={data.get('welcome_text')}, maintenance_mode={data.get('maintenance_mode')}")
+    log_change(f"Group {group_id} settings updated: name={group['name']}, max_occupancy={group['max_occupancy']}, welcome_text={group['welcome_text']}, maintenance_mode={group['maintenance_mode']}")
     return jsonify({'status': 'success'}), 200
 
 # /api/schedules
