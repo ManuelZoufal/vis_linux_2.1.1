@@ -1,0 +1,246 @@
+{
+    "sensors": [
+        {
+            "sensor_id": "1",
+            "type": "AI_HANWHA",
+            "ip_address": "XXX.XXX.XXX.43",
+            "name": "KAM3174043 | Aussenfassade Nord",
+            "group_id": "2",
+            "username": "admin",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061265"
+        },
+        {
+            "sensor_id": "2",
+            "type": "IEE",
+            "ip_address": "XXX.XXX.XXX.44",
+            "name": "IEE3174044 | Trattotia Nord",
+            "group_id": "1",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061266"
+        },
+        {
+            "sensor_id": "3",
+            "type": "IEE",
+            "ip_address": "XXX.XXX.XXX.45",
+            "name": "IEE3174045 | Trattotia West",
+            "group_id": "1",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061267"
+        },
+        {
+            "sensor_id": "4",
+            "type": "AI_HANWHA",
+            "ip_address": "XXX.XXX.XXX.46",
+            "name": "KAM3174046 | Trattotia Sued",
+            "group_id": "1",
+            "username": "admin",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061269"
+        },
+        {
+            "sensor_id": "5",
+            "type": "IEE",
+            "ip_address": "XXX.XXX.XXX.47",
+            "name": "IEE3174047 | Restaurant Eingang Ost",
+            "group_id": "2",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061270"
+        },
+        {
+            "sensor_id": "6",
+            "type": "IEE",
+            "ip_address": "XXX.XXX.XXX.48",
+            "name": "IEE3174048 | Restaurant Eingang Fassade Ost",
+            "group_id": "2",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061271"
+        },
+        {
+            "sensor_id": "7",
+            "type": "IEE",
+            "ip_address": "XXX.XXX.XXX.49",
+            "name": "IEE3174049 | Restaurant Eingang",
+            "group_id": "2",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061273"
+        },
+        {
+            "sensor_id": "8",
+            "type": "IEE",
+            "ip_address": "XXX.XXX.XXX.50",
+            "name": "IEE3174050 | Restaurant Ausgang West",
+            "group_id": "3",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061274"
+        },
+        {
+            "sensor_id": "9",
+            "type": "AI_HANWHA",
+            "ip_address": "XXX.XXX.XXX.51",
+            "name": "KAM3174051 | Restaurant Ausgabe Nord",
+            "group_id": "3",
+            "username": "admin",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061276"
+        },
+        {
+            "sensor_id": "10",
+            "type": "AI_HANWHA",
+            "ip_address": "XXX.XXX.XXX.52",
+            "name": "KAM3174052 | Restaurant Ausgabe Sued",
+            "group_id": "3",
+            "username": "admin",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061277"
+        },
+        {
+            "sensor_id": "11",
+            "type": "AI_HANWHA",
+            "ip_address": "XXX.XXX.XXX.53",
+            "name": "KAM3174053 | Restaurant Ausgang Sued",
+            "group_id": "3",
+            "username": "admin",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061278"
+        },
+        {
+            "sensor_id": "12",
+            "type": "AI_HANWHA",
+            "ip_address": "XXX.XXX.XXX.54",
+            "name": "KAM3174054 | Aussenfassade Ost",
+            "group_id": "3",
+            "username": "admin",
+            "password": "ENTER-PASSWORD-HERE",
+            "datapoint_id": "10061279"
+        }
+    ],
+    "groups": [
+        {
+            "group_id": "1",
+            "name": "Trattoria Giorgio",
+            "max_occupancy": "150",
+            "welcome_text": "Willkommen in der Trattoria Giorgio",
+            "maintenance_mode": false,
+            "display_images": [
+                null,
+                null,
+                null
+            ]
+        },
+        {
+            "group_id": "2",
+            "name": "Restaurant Geschmackswerk",
+            "max_occupancy": "400",
+            "welcome_text": "Willkommen im Restaurant Geschmackswerk",
+            "maintenance_mode": false,
+            "display_images": [
+                null,
+                null,
+                null
+            ]
+        },
+        {
+            "group_id": "3",
+            "name": "Default Group",
+            "max_occupancy": "105",
+            "welcome_text": "Welcome to the Default Group",
+            "maintenance_mode": true
+        }
+    ],
+    "schedules": [
+        {
+            "id": 1,
+            "action": "reset",
+            "interval": "daily",
+            "day": "monday",
+            "time": "07:00",
+            "sensors": [
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12"
+            ]
+        },
+        {
+            "id": 2,
+            "action": "reset",
+            "interval": "daily",
+            "day": "monday",
+            "time": "23:45",
+            "sensors": [
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12"
+            ]
+        },
+        {
+            "id": 3,
+            "action": "reboot",
+            "interval": "daily",
+            "day": "monday",
+            "time": "00:15",
+            "sensors": [
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12"
+            ]
+        },
+        {
+            "id": 4,
+            "action": "reset",
+            "interval": "daily",
+            "day": "monday",
+            "time": "23:00",
+            "sensors": [
+                "8"
+            ]
+        },
+        {
+            "id": 5,
+            "action": "reset",
+            "interval": "daily",
+            "day": "monday",
+            "time": "23:00",
+            "sensors": [
+                "10"
+            ]
+        },
+        {
+            "id": 6,
+            "action": "reset",
+            "interval": "daily",
+            "day": "monday",
+            "time": "23:45",
+            "sensors": [
+                "8"
+            ]
+        }
+    ]
+}
