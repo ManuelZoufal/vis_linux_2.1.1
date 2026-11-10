@@ -15,7 +15,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Version of this code. Raised with every update, see "Versionen" in README.md.
 # Deliberately not read from .env, so the displayed version always matches the installed files.
-APP_VERSION = "2.1.7"
+APP_VERSION = "2.1.8"
 APP_DEBUG = os.environ.get("APP_DEBUG", "false").strip().lower() in ("1", "true", "yes")
 APP_PORT = int(os.environ.get("APP_PORT", 5000))
 SESSION_LIFETIME_HOURS = int(os.environ.get("SESSION_LIFETIME_HOURS", 24))

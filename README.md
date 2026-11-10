@@ -119,6 +119,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.8 | Chart.js wird lokal aus `static/vendor/` ausgeliefert statt vom CDN: die Belegungsanzeige funktioniert ohne Internetzugang des Anzeigegeräts |
 | 2.1.7 | Login-Sperre nach wiederholten Fehlversuchen (`LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCK_MINUTES`); Rollenänderungen und gelöschte Benutzer wirken sofort statt erst nach Ablauf der Sitzung; das eigene Konto und der letzte Administrator lassen sich nicht löschen oder herabstufen |
 | 2.1.6 | Zeitstempel folgen der Sommerzeit (`APP_TIMEZONE`, Standard `Europe/Berlin`); Änderungen an `config.json` laufen unter einer Sperre und werden atomar geschrieben; Navigator-Zugangsdaten lassen sich als Administrator unter „Navigator-Zugang“ ändern und testen |
 | 2.1.5 | Virtuelle Sensoren stören den Start nicht mehr und lassen sich bearbeiten (Name, Gruppe, Belegung); Gruppe löschen legt die Standardgruppe nur einmal an und verschiebt die Sensoren korrekt; Passwort ändern funktioniert für alle Rollen; ein doppelter Benutzername ergibt eine Meldung statt einer Fehlerseite; Meldungen werden auf allen Seiten der Benutzerverwaltung angezeigt |
@@ -126,3 +127,12 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 | 2.1.3 | Anmeldepflicht für die schreibende API und die Visualisierungs-Konfiguration; Namen und Texte werden in der Oberfläche als Text statt als HTML eingesetzt; Webinterface-Proxy entfernt, der Knopf öffnet den Sensor in einem neuen Tab |
 | 2.1.2 | Live-Thread-Status unter „Logs“; Start ohne Debug-Modus und Reloader (ein Prozess); Pflichtwerte in `.env`; Benutzer und Passwörter bleiben über Neustarts erhalten; Timeouts für Sensorabfragen; Korrekturen an `update-settings` und am Lauftext |
 | 2.1.1 | Ausgangsstand |
+
+## Enthaltene Bibliotheken
+
+| Bibliothek | Version | Lizenz | Datei |
+|---|---|---|---|
+| Chart.js | 4.6.1 | MIT (`static/vendor/chart.js-LICENSE.md`) | `static/vendor/chart.umd.min.js` |
+| chartjs-plugin-datalabels | 2.2.0 | MIT (`static/vendor/chartjs-plugin-datalabels-LICENSE.md`) | `static/vendor/chartjs-plugin-datalabels.min.js` |
+
+Die Dateien sind unverändert aus den npm-Paketen übernommen.
