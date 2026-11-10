@@ -9,6 +9,7 @@ from threading import Thread
 
 from src.sensor import sensors
 from src.navigator import upload_data_to_navigator
+from src.config_store import load_config
 from src import thread_status
 
 SCHEDULER_THREAD_NAME = 'SchedulerThread'
@@ -28,8 +29,7 @@ def load_schedule_from_config(config_path):
     Returns:
     list: List of schedules
     """
-    with open(config_path, 'r') as file:
-        config = json.load(file)
+    config = load_config(config_path)
     return config.get('schedules', [])
 
 ACTIONS = ('reset', 'reboot', 'upload')

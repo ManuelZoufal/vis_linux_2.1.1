@@ -4,18 +4,37 @@ from src.sensor import sensors
 from src.helpers import get_local_ip, log_change, api_login_required
 from src.scheduler import add_schedule as scheduler_add_schedule, edit_schedule as scheduler_edit_schedule, delete_schedule as scheduler_delete_schedule, validate_schedule
 from src.database import get_connection, save_sensor_values
+from src.config_store import load_config, save_config, with_config_lock
 from src import thread_status
 
 from flask import jsonify, session, request, send_file, current_app
 from werkzeug.utils import secure_filename
 from datetime import datetime, timezone, timedelta
 from threading import enumerate as enumerate_threads
+from zoneinfo import ZoneInfo
+import logging
 import json
 import sqlite3
 import socket
 import io
 import os
 
+
+
+def _display_timezone():
+    """
+    Timezone for timestamps shown in the user interface (APP_TIMEZONE, default Europe/Berlin).
+    Follows daylight saving time. Falls back to fixed UTC+1 if the timezone is unknown.
+    """
+    name = os.environ.get('APP_TIMEZONE', 'Europe/Berlin')
+    try:
+        return ZoneInfo(name)
+    except Exception as e:
+        logging.warning(f"Timezone {name} not available ({e}), using fixed UTC+1")
+        return timezone(timedelta(hours=1))
+
+
+DISPLAY_TIMEZONE = _display_timezone()
 
 
 def _virtual_sensor_values(data, current=None):
@@ -162,8 +181,7 @@ def get_data():
     conn.close()
 
     # Get sensor data from the config file
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     
     # Combine sensor data from the config file and the database
     sensor_data = [{
@@ -183,7 +201,7 @@ def get_data():
     for sensor in sensor_data:
         if sensor['timestamp'] != 'N/A':
             dt = datetime.strptime(sensor['timestamp'], '%Y-%m-%d %H:%M:%S')
-            dt = dt.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=1)))  # Adjust to your desired timezone
+            dt = dt.replace(tzinfo=timezone.utc).astimezone(DISPLAY_TIMEZONE)  # The database stores UTC
             sensor['timestamp'] = dt.strftime('%Y-%m-%d %H:%M:%S %Z')
     # Get group data from the config file
     group_data = config['groups']
@@ -525,6 +543,7 @@ def reboot_sensor(sensor_id):
 # /api/sensors/<sensor_id>/edit
 @api_bp.route('/sensors/<sensor_id>/edit', methods=['POST'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def edit_sensor(sensor_id):
     """
     Edit sensor
@@ -586,16 +605,14 @@ def edit_sensor(sensor_id):
         sensor.group_id = data.get('group_id', sensor.group_id)
         sensor.datapoint_id = data.get('datapoint_id', sensor.datapoint_id)
         # Save changes to config file
-        with open('config.json', 'r') as file:
-            config = json.load(file)
+        config = load_config()
         for sensor_config in config['sensors']:
             if sensor_config['sensor_id'] == sensor_id:
                 sensor_config['name'] = sensor.name
                 sensor_config['group_id'] = sensor.group_id
                 sensor_config['datapoint_id'] = sensor.datapoint_id
                 break
-        with open('config.json', 'w') as file:
-            json.dump(config, file, indent=4)
+        save_config(config)
         log_change(f"Sensor {sensor_id} edited: name={sensor.name}, group_id={sensor.group_id}, datapoint_id={sensor.datapoint_id}")
         save_sensor_values(sensor)
         return jsonify({'status': 'success'}), 200
@@ -604,6 +621,7 @@ def edit_sensor(sensor_id):
 # /api/sensors/virtual/add
 @api_bp.route('/sensors/virtual/add', methods=['PUT'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def add_virtual_sensor():
     """
     Add virtual sensor
@@ -674,8 +692,7 @@ def add_virtual_sensor():
     values, problem = _virtual_sensor_values(request.get_json(silent=True) or {})
     if problem:
         return jsonify({'status': 'error', 'message': problem}), 400
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     if not any(str(g['group_id']) == values['group_id'] for g in config['groups']):
         return jsonify({'status': 'error', 'message': 'Gruppe nicht gefunden'}), 400
 
@@ -689,14 +706,14 @@ def add_virtual_sensor():
         **values
     }
     config['sensors'].append(new_sensor)
-    with open('config.json', 'w') as file:
-        json.dump(config, file, indent=4)
+    save_config(config)
     log_change(f"Virtual sensor {new_sensor['sensor_id']} added: name={new_sensor['name']}, group_id={new_sensor['group_id']}, occupancy={new_sensor['occupancy']}")
     return jsonify({'status': 'success', 'sensor': new_sensor}), 200
 
 # /api/sensors/virtual/<sensor_id>/edit
 @api_bp.route('/sensors/virtual/<sensor_id>/edit', methods=['POST'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def edit_virtual_sensor(sensor_id):
     """
     Edit virtual sensor
@@ -774,8 +791,7 @@ def edit_virtual_sensor(sensor_id):
                     type: string
                     example: Sensor not found or not virtual
     """
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     sensor = next((s for s in config['sensors'] if s['sensor_id'] == sensor_id), None)
     if not sensor or sensor['type'] != 'VIRTUAL':
         return jsonify({'status': 'error', 'message': 'Sensor not found or not virtual'}), 404
@@ -787,14 +803,14 @@ def edit_virtual_sensor(sensor_id):
         return jsonify({'status': 'error', 'message': 'Gruppe nicht gefunden'}), 400
 
     sensor.update(values)
-    with open('config.json', 'w') as file:
-        json.dump(config, file, indent=4)
+    save_config(config)
     log_change(f"Virtual sensor {sensor_id} edited: name={sensor['name']}, group_id={sensor['group_id']}, occupancy={sensor['occupancy']}")
     return jsonify({'status': 'success', 'sensor': sensor}), 200
 
 # /api/sensors/virtual/<sensor_id>/delete 
 @api_bp.route('/sensors/virtual/<sensor_id>/delete', methods=['DELETE'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def delete_virtual_sensor(sensor_id):
     """
     Delete virtual sensor
@@ -834,13 +850,11 @@ def delete_virtual_sensor(sensor_id):
                     type: string
                     example: Sensor not found or not virtual
     """
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     sensor = next((s for s in config['sensors'] if s['sensor_id'] == sensor_id), None)
     if sensor and sensor['type'] == 'VIRTUAL':
         config['sensors'] = [s for s in config['sensors'] if s['sensor_id'] != sensor_id]
-        with open('config.json', 'w') as file:
-            json.dump(config, file, indent=4)
+        save_config(config)
         log_change(f"Virtual sensor {sensor_id} deleted")
         return jsonify({'status': 'success'}), 200
     return jsonify({'status': 'error', 'message': 'Sensor not found or not virtual'}), 404
@@ -848,6 +862,7 @@ def delete_virtual_sensor(sensor_id):
 # /api/groups/add
 @api_bp.route('/groups/add', methods=['PUT'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def add_group():
     """
     Add group
@@ -920,8 +935,7 @@ def add_group():
                     example: Error message
     """
     data = request.json
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     
     # Find the next available integer for group_id
     existing_group_ids = [int(group['group_id']) for group in config['groups']]
@@ -935,13 +949,13 @@ def add_group():
         "maintenance_mode": data.get('maintenance_mode', False)
     }
     config['groups'].append(new_group)
-    with open('config.json', 'w') as file:
-        json.dump(config, file, indent=4)
+    save_config(config)
     return jsonify({'status': 'success', 'group': new_group}), 200
 
 # /api/groups/<group_id>/edit
 @api_bp.route('/groups/<group_id>/edit', methods=['POST'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def edit_group(group_id):
     """
     Edit group
@@ -1005,8 +1019,7 @@ def edit_group(group_id):
                     example: Group not found
     """
     data = request.json
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
     if group:
@@ -1015,8 +1028,7 @@ def edit_group(group_id):
         group['max_occupancy'] = data.get('max_occupancy', group['max_occupancy'])
         group['maintenance_mode'] = data.get('maintenance_mode', group.get('maintenance_mode', False))
         
-        with open('config.json', 'w') as file:
-            json.dump(config, file, indent=4)
+        save_config(config)
         
         log_change(f"Group {group_id} edited: name={group['name']}, welcome_text={group['welcome_text']}, max_occupancy={group['max_occupancy']}, maintenance_mode={group['maintenance_mode']}")
         return jsonify({'status': 'success'}), 200
@@ -1025,6 +1037,7 @@ def edit_group(group_id):
 # /api/groups/<group_id>/delete
 @api_bp.route('/groups/<group_id>/delete', methods=['DELETE'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def delete_group(group_id):
     """
     Delete group
@@ -1065,8 +1078,7 @@ def delete_group(group_id):
                     example: Group not found
     """
     DEFAULT_GROUP_ID = '0'
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
     if not group:
         return jsonify({'status': 'error', 'message': 'Group not found'}), 404
@@ -1093,14 +1105,14 @@ def delete_group(group_id):
                 sensor.group_id = DEFAULT_GROUP_ID
 
     config['groups'] = [g for g in config['groups'] if str(g['group_id']) != group_id]
-    with open('config.json', 'w') as file:
-        json.dump(config, file, indent=4)
+    save_config(config)
     log_change(f"Group {group_id} deleted: {len(assigned)} sensor(s) moved to group {DEFAULT_GROUP_ID}")
     return jsonify({'status': 'success'}), 200
 
 # /api/groups/<group_id>/toggle_maintenance_mode
 @api_bp.route('/groups/<group_id>/toggle_maintenance_mode', methods=['POST'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def toggle_maintenance_mode(group_id):
     """
     Toggle maintenance mode
@@ -1152,13 +1164,11 @@ def toggle_maintenance_mode(group_id):
                     example: Group not found
     """
     data = request.json
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
     if group:
         group['maintenance_mode'] = data['maintenance_mode']
-        with open('config.json', 'w') as file:
-            json.dump(config, file, indent=4)
+        save_config(config)
         log_change(f"Group {group_id} maintenance mode set to {data['maintenance_mode']}")
         return jsonify({'status': 'success'}), 200
     return jsonify({'status': 'error', 'message': 'Group not found'}), 404
@@ -1166,6 +1176,7 @@ def toggle_maintenance_mode(group_id):
 # /api/groups/<group_id>/update-settings
 @api_bp.route('/groups/<group_id>/update-settings', methods=['POST'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def update_group_settings(group_id):
     """
     Update group settings
@@ -1229,8 +1240,7 @@ def update_group_settings(group_id):
                     example: Group not found
     """
     data = request.json
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
     if not group:
         return jsonify({'status': 'error', 'message': 'Group not found'}), 404
@@ -1239,8 +1249,7 @@ def update_group_settings(group_id):
     group['welcome_text'] = data.get('welcome_text', group['welcome_text'])
     group['maintenance_mode'] = data.get('maintenance_mode', group.get('maintenance_mode', False))
 
-    with open('config.json', 'w') as file:
-        json.dump(config, file, indent=4)
+    save_config(config)
     log_change(f"Group {group_id} settings updated: name={data.get('name')}, max_occupancy={data.get('max_occupancy')}, welcome_text={data.get('welcome_text')}, maintenance_mode={data.get('maintenance_mode')}")
     return jsonify({'status': 'success'}), 200
 
@@ -1298,13 +1307,13 @@ def get_schedulers():
                     type: string
                     example: Error message
     """
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     return jsonify({'schedules': config.get('schedules', [])}), 200
 
 # /api/schedules/add
 @api_bp.route('/schedules/add', methods=['PUT'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def add_schedule_route():
     """
     Add schedule
@@ -1399,8 +1408,7 @@ def add_schedule_route():
     if problem:
         return jsonify({'status': 'error', 'message': problem}), 400
 
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
 
     # Find the next available integer for schedule_id
     existing_schedule_ids = [schedule['id'] for schedule in config.get('schedules', [])]
@@ -1409,8 +1417,7 @@ def add_schedule_route():
     if 'schedules' not in config:
         config['schedules'] = []
     config['schedules'].append(new_schedule)
-    with open('config.json', 'w') as file:
-        json.dump(config, file, indent=4)
+    save_config(config)
 
     # Add the new schedule to the scheduler
     scheduler_add_schedule(new_schedule)
@@ -1421,6 +1428,7 @@ def add_schedule_route():
 # /api/schedules/<schedule_id>/edit
 @api_bp.route('/schedules/<schedule_id>/edit', methods=['POST'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def edit_schedule_route(schedule_id):
     """
     Edit schedule
@@ -1490,8 +1498,7 @@ def edit_schedule_route(schedule_id):
                     example: Schedule not found
     """
     data = request.get_json(silent=True) or {}
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
 
     # Compare as strings: the id is an integer in config.json and a string in the URL
     schedule = next((s for s in config.get('schedules', []) if str(s.get('id')) == str(schedule_id)), None)
@@ -1507,8 +1514,7 @@ def edit_schedule_route(schedule_id):
         return jsonify({'status': 'error', 'message': problem}), 400
 
     schedule.update(updated)
-    with open('config.json', 'w') as file:
-        json.dump(config, file, indent=4)
+    save_config(config)
 
     # Replace the job in the scheduler
     scheduler_edit_schedule(schedule['id'], schedule)
@@ -1519,6 +1525,7 @@ def edit_schedule_route(schedule_id):
 # /api/schedules/<schedule_id>/delete
 @api_bp.route('/schedules/<schedule_id>/delete', methods=['DELETE'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def delete_schedule_route(schedule_id):
     """
     Delete schedule
@@ -1558,8 +1565,7 @@ def delete_schedule_route(schedule_id):
                     type: string
                     example: Schedule not found
     """
-    with open('config.json', 'r') as file:
-        config = json.load(file)
+    config = load_config()
     all_schedules = config.get('schedules', [])
     # Compare as strings: the id is an integer in config.json and a string in the URL
     removed = [s for s in all_schedules if str(s.get('id')) == str(schedule_id)]
@@ -1568,8 +1574,7 @@ def delete_schedule_route(schedule_id):
         return jsonify({'status': 'error', 'message': 'Schedule not found'}), 404
 
     config['schedules'] = schedules
-    with open('config.json', 'w') as file:
-        json.dump(config, file, indent=4)
+    save_config(config)
 
     # Remove the job from the scheduler, so it stops running immediately
     for schedule in removed:
@@ -1594,9 +1599,9 @@ def _upload_folder():
 # /api/groups/<group_id>/display_images  (POST = upload, GET = list)
 @api_bp.route('/groups/<group_id>/display_images', methods=['GET', 'POST'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def group_display_images(group_id):
-    with open('config.json', 'r') as f:
-        config = json.load(f)
+    config = load_config()
     group = next((g for g in config['groups'] if str(g['group_id']) == str(group_id)), None)
     if not group:
         return jsonify({'status': 'error', 'message': 'Group not found'}), 404
@@ -1635,8 +1640,7 @@ def group_display_images(group_id):
     file.save(os.path.join(upload_folder, filename))
     images[slot] = filename
     group['display_images'] = images
-    with open('config.json', 'w') as f:
-        json.dump(config, f, indent=4)
+    save_config(config)
     log_change(f"Group {group_id} display image slot {slot} updated: {filename}")
     return jsonify({'status': 'success', 'display_images': images}), 200
 
@@ -1644,11 +1648,11 @@ def group_display_images(group_id):
 # /api/groups/<group_id>/display_images/<int:slot>  (DELETE)
 @api_bp.route('/groups/<group_id>/display_images/<int:slot>', methods=['DELETE'])
 @api_login_required(role='Administrator')
+@with_config_lock
 def delete_group_display_image(group_id, slot):
     if not (0 <= slot < MAX_DISPLAY_IMAGES):
         return jsonify({'status': 'error', 'message': 'Invalid slot (0-2)'}), 400
-    with open('config.json', 'r') as f:
-        config = json.load(f)
+    config = load_config()
     group = next((g for g in config['groups'] if str(g['group_id']) == str(group_id)), None)
     if not group:
         return jsonify({'status': 'error', 'message': 'Group not found'}), 404
@@ -1664,7 +1668,6 @@ def delete_group_display_image(group_id, slot):
             os.remove(old_path)
     images[slot] = None
     group['display_images'] = images
-    with open('config.json', 'w') as f:
-        json.dump(config, f, indent=4)
+    save_config(config)
     log_change(f"Group {group_id} display image slot {slot} deleted")
     return jsonify({'status': 'success', 'display_images': images}), 200

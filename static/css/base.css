@@ -10,6 +10,7 @@ body {
     background-color: #009999;
     overflow: hidden;
     display: flex;
+    flex-wrap: wrap;  /* wrap to a second row instead of cutting off entries on narrow windows */
     align-items: center;
     min-height: 54px;
 }

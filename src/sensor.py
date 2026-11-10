@@ -5,6 +5,7 @@ import time
 from src.sensor_IEE import IEE
 from src.sensor_AIHANWHA import AI_HANWHA
 from src.database import save_sensor_values
+from src.config_store import load_config
 from src import thread_status
 
 def load_sensors_from_config(config_path):
@@ -17,8 +18,7 @@ def load_sensors_from_config(config_path):
     Returns:
     list: List of sensors
     """
-    with open(config_path, 'r') as file:
-        config = json.load(file)
+    config = load_config(config_path)
     sensors = []
     for sensor_config in config['sensors']:
         if sensor_config['type'] == 'VIRTUAL':

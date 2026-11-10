@@ -1,9 +1,12 @@
 from . import admin_bp
 
-from src.helpers import login_required
+from src.helpers import login_required, log_change
+from src.navigator import create_OAUTH_token
 from src.database import get_connection
 
-from flask import render_template, request, redirect, url_for, flash, session
+from flask import render_template, request, redirect, url_for, flash, session, current_app
+from dotenv import set_key
+import os
 from werkzeug.security import check_password_hash, generate_password_hash
 import sqlite3
 
@@ -188,3 +191,52 @@ def change_password():
 def landing_page():
     """Render the landing page"""
     return render_template('admin/index.html')
+
+
+# /admin/navigator
+@admin_bp.route('/navigator', methods=['GET', 'POST'], endpoint='navigator')
+@login_required(role='Administrator')
+def navigator_credentials():
+    """
+    Show and change the Navigator credentials
+
+    The values are written to the .env file and to the environment of the
+    running process, so the next upload uses them without a restart.
+    The password is never sent to the browser.
+    """
+    if request.method == 'POST':
+        username = request.form.get('navigator_username', '').strip()
+        password = request.form.get('navigator_password', '')
+        if not username:
+            flash('Der Benutzername darf nicht leer sein.', 'error')
+            return redirect(url_for('admin.navigator'))
+
+        values = {'NAVIGATOR_USERNAME': username}
+        if password:
+            values['NAVIGATOR_PASSWORD'] = password  # empty means: keep the stored password
+
+        env_path = os.path.join(current_app.root_path, '.env')
+        try:
+            for key, value in values.items():
+                set_key(env_path, key, value, quote_mode='always')
+        except OSError as e:
+            flash(f'Die Datei .env konnte nicht geschrieben werden: {e}', 'error')
+            return redirect(url_for('admin.navigator'))
+        os.environ.update(values)
+
+        changed = 'Benutzername und Passwort' if password else 'Benutzername'
+        log_change(f"Navigator credentials changed ({'username and password' if password else 'username'}) by user id {session.get('user_id')}")
+        flash(f'Navigator-Zugangsdaten gespeichert ({changed}).', 'success')
+
+        if request.form.get('action') == 'save_and_test':
+            if create_OAUTH_token():
+                flash('Verbindungstest erfolgreich: Navigator hat die Zugangsdaten akzeptiert.', 'success')
+            else:
+                flash('Verbindungstest fehlgeschlagen: Navigator hat kein Token ausgestellt. Details stehen im Server-Log.', 'error')
+        return redirect(url_for('admin.navigator'))
+
+    return render_template(
+        'admin/navigator.html',
+        username=os.environ.get('NAVIGATOR_USERNAME', ''),
+        password_set=bool(os.environ.get('NAVIGATOR_PASSWORD')),
+    )
