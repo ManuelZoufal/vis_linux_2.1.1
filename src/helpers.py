@@ -1,9 +1,11 @@
 import socket
 from datetime import datetime
 from functools import wraps
-from flask import session, redirect, url_for, jsonify
+from flask import session, redirect, url_for, jsonify, request
 
 import os
+
+from src.database import get_connection
 
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -35,6 +37,25 @@ def log_change(message):
             log_file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
     except Exception as e:
         print(f"[LOG ERROR] Could not write to change_log.txt: {e}")
+
+
+def refresh_session_user():
+    """
+    Run before every request: take the role of the logged in user from the
+    database, so a changed role applies immediately, and end the session if
+    the user was deleted.
+    """
+    if 'user_id' not in session or request.endpoint == 'static':
+        return
+    conn = get_connection()
+    try:
+        user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    finally:
+        conn.close()
+    if user is None:
+        session.clear()
+    elif session.get('role') != user['role']:
+        session['role'] = user['role']
 
 
 def _role_allowed(role):

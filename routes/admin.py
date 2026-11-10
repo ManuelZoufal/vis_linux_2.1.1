@@ -2,6 +2,7 @@ from . import admin_bp
 
 from src.helpers import login_required, log_change
 from src.navigator import create_OAUTH_token
+from src import login_guard
 from src.database import get_connection
 
 from flask import render_template, request, redirect, url_for, flash, session, current_app
@@ -11,6 +12,17 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import sqlite3
 
 ROLES = ('Administrator', 'Benutzer', 'Betrachter')
+
+# Hash of a random value, checked when the user name does not exist
+_DUMMY_HASH = generate_password_hash(os.urandom(16).hex(), method='pbkdf2:sha256')
+
+
+def _is_last_administrator(conn, user):
+    """True if the user is the only remaining Administrator"""
+    if user['role'] != 'Administrator':
+        return False
+    count = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'Administrator'").fetchone()[0]
+    return count <= 1
 
 
 def _validate_user(username, role):
@@ -33,22 +45,35 @@ def admin_index():
 def login():
     """Render the login page"""
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
         remember = 'remember' in request.form
+        client = request.remote_addr or 'unknown'
+
+        locked = login_guard.seconds_locked(client, username)
+        if locked:
+            flash(f'Zu viele Fehlversuche. Bitte in {(locked + 59) // 60} Minute(n) erneut versuchen.', 'error')
+            return render_template('admin/login.html'), 429
 
         conn = get_connection()
         user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         conn.close()
 
-        if user and check_password_hash(user['password'], password):
+        # Always check a hash, so an unknown user name does not answer faster than a known one
+        password_ok = check_password_hash(user['password'] if user else _DUMMY_HASH, password)
+        if user and password_ok:
+            login_guard.record_success(client, username)
+            session.clear()
             session['user_id'] = user['id']
             session['role'] = user['role']
             if remember:
                 session.permanent = True
             return redirect(url_for('admin.index'))
-        else:
-            flash('Benutzername oder Passwort falsch!', 'error')
+
+        if login_guard.record_failure(client, username):
+            shown = ''.join(ch for ch in username if ch.isprintable())[:50]
+            log_change(f"Login locked for {login_guard.LOCK_MINUTES} minutes after repeated failures: user '{shown}' from {client}")
+        flash('Benutzername oder Passwort falsch!', 'error')
 
     return render_template('admin/login.html')
 
@@ -122,10 +147,14 @@ def edit_user(id):
         if not error:
             conn = get_connection()
             try:
+                if role != 'Administrator' and _is_last_administrator(conn, user):
+                    raise ValueError('Der letzte Administrator muss die Rolle Administrator behalten.')
                 conn.execute('UPDATE users SET username = ?, role = ? WHERE id = ?', (username, role, id))
                 conn.commit()
             except sqlite3.IntegrityError:
                 error = f'Der Benutzername „{username}“ ist bereits vergeben.'
+            except ValueError as e:
+                error = str(e)
             finally:
                 conn.close()
         if error:
@@ -142,12 +171,23 @@ def edit_user(id):
 @login_required(role='Administrator')
 def delete_user(id):
     """Delete a user"""
-    conn = get_connection()
-    conn.execute('DELETE FROM users WHERE id = ?', (id,))
-    conn.commit()
-    conn.close()
+    if id == session.get('user_id'):
+        flash('Das eigene Konto kann nicht gelöscht werden.', 'error')
+        return redirect(url_for('admin.manage_users'))
 
-    flash('Benutzer wurde gelöscht.', 'success')
+    conn = get_connection()
+    try:
+        user = conn.execute('SELECT * FROM users WHERE id = ?', (id,)).fetchone()
+        if user is None:
+            flash('Benutzer nicht gefunden.', 'error')
+        elif _is_last_administrator(conn, user):
+            flash('Der letzte Administrator kann nicht gelöscht werden.', 'error')
+        else:
+            conn.execute('DELETE FROM users WHERE id = ?', (id,))
+            conn.commit()
+            flash(f'Benutzer „{user["username"]}“ wurde gelöscht.', 'success')
+    finally:
+        conn.close()
     return redirect(url_for('admin.manage_users'))
 
 # /admin/users/reset_password/  (every logged in user changes the own password)

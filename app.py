@@ -15,7 +15,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Version of this code. Raised with every update, see "Versionen" in README.md.
 # Deliberately not read from .env, so the displayed version always matches the installed files.
-APP_VERSION = "2.1.6"
+APP_VERSION = "2.1.7"
 APP_DEBUG = os.environ.get("APP_DEBUG", "false").strip().lower() in ("1", "true", "yes")
 APP_PORT = int(os.environ.get("APP_PORT", 5000))
 SESSION_LIFETIME_HOURS = int(os.environ.get("SESSION_LIFETIME_HOURS", 24))
@@ -42,6 +42,7 @@ from src.sensor import sensors, sensor_thread  # The same sensor list the API an
 from src.scheduler import start_scheduler  # Import scheduler functions
 from src.navigator import navigator_thread  # Import navigator functions
 from src import thread_status
+from src.helpers import refresh_session_user
 
 app = Flask(__name__)
 app.secret_key = os.environ["APP_SECRET_KEY"]
@@ -70,6 +71,10 @@ def inject_version():
 def redirect_to_https():
     if not request.is_secure:
         return redirect(request.url.replace("http://", "https://", 1), code=301)
+
+
+# Role changes and deleted users take effect with the next request
+app.before_request(refresh_session_user)
 
 
 # Thread Management: Threads report their status to src.thread_status (shown live on the logs page)

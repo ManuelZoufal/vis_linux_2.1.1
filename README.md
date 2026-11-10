@@ -36,6 +36,7 @@ venv/bin/pip install -r requirements.txt
    | `DEFAULT_ADMIN_PASSWORD` | Pflicht. Passwort des Administrators beim ersten Anlegen; ein später geändertes Passwort bleibt erhalten |
    | `DEFAULT_ADMIN_USER` | Benutzername des Administrators (Standard `admin`) |
    | `NAVIGATOR_USERNAME`, `NAVIGATOR_PASSWORD` | Zugangsdaten für Navigator; ohne sie findet kein Upload statt. Als Administrator auch in der Oberfläche unter „Navigator-Zugang“ änderbar; dafür muss der Benutzer, unter dem die Anwendung läuft, `.env` schreiben dürfen |
+   | `LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCK_MINUTES` | Login-Sperre: nach so vielen Fehlversuchen (Standard 5) für einen Benutzernamen von einer Adresse sind weitere Versuche so viele Minuten (Standard 15) gesperrt. Ein Neustart hebt alle Sperren auf |
    | `APP_TIMEZONE` | Zeitzone für angezeigte Zeitstempel (Standard `Europe/Berlin`) |
    | `APP_PORT` | Port des Webservers (Standard 5000) |
    | `APP_DEBUG` | `False` im Betrieb. `True` aktiviert den Werkzeug-Debugger und ausführliche Logs |
@@ -118,6 +119,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.7 | Login-Sperre nach wiederholten Fehlversuchen (`LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCK_MINUTES`); Rollenänderungen und gelöschte Benutzer wirken sofort statt erst nach Ablauf der Sitzung; das eigene Konto und der letzte Administrator lassen sich nicht löschen oder herabstufen |
 | 2.1.6 | Zeitstempel folgen der Sommerzeit (`APP_TIMEZONE`, Standard `Europe/Berlin`); Änderungen an `config.json` laufen unter einer Sperre und werden atomar geschrieben; Navigator-Zugangsdaten lassen sich als Administrator unter „Navigator-Zugang“ ändern und testen |
 | 2.1.5 | Virtuelle Sensoren stören den Start nicht mehr und lassen sich bearbeiten (Name, Gruppe, Belegung); Gruppe löschen legt die Standardgruppe nur einmal an und verschiebt die Sensoren korrekt; Passwort ändern funktioniert für alle Rollen; ein doppelter Benutzername ergibt eine Meldung statt einer Fehlerseite; Meldungen werden auf allen Seiten der Benutzerverwaltung angezeigt |
 | 2.1.4 | Zeitpläne: Bearbeiten ändert den bestehenden Zeitplan statt einen neuen anzulegen; gelöschte und geänderte Zeitpläne wirken sofort statt erst nach einem Neustart; wöchentliche Zeitpläne funktionieren; Eingaben werden geprüft; ein fehlgeschlagener Sensor bricht die Aktion für die übrigen nicht mehr ab; Änderungen stehen im Änderungsprotokoll |
