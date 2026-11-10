@@ -109,3 +109,14 @@ journalctl -u vis -f
 
 Administratoren sehen unter „Logs“ den Abschnitt „Thread-Status“: je Hintergrund-Thread den
 Zustand, den letzten erfolgreichen Durchlauf und den letzten Fehler, alle 2 Sekunden aktualisiert.
+
+## Versionen
+
+Die Version steht in `app.py` (`APP_VERSION`) und wird in der Navigationsleiste angezeigt.
+Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt werden.
+
+| Version | Änderungen |
+|---|---|
+| 2.1.3 | Anmeldepflicht für die schreibende API und die Visualisierungs-Konfiguration; Namen und Texte werden in der Oberfläche als Text statt als HTML eingesetzt; Webinterface-Proxy entfernt, der Knopf öffnet den Sensor in einem neuen Tab |
+| 2.1.2 | Live-Thread-Status unter „Logs“; Start ohne Debug-Modus und Reloader (ein Prozess); Pflichtwerte in `.env`; Benutzer und Passwörter bleiben über Neustarts erhalten; Timeouts für Sensorabfragen; Korrekturen an `update-settings` und am Lauftext |
+| 2.1.1 | Ausgangsstand |

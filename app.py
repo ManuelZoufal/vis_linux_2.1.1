@@ -13,7 +13,9 @@ from flask import Flask, redirect, request
 # Sensors use self-signed certificates (verify=False) -> suppress the warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-APP_VERSION = os.environ.get("APP_VERSION", "2.1.1")
+# Version of this code. Raised with every update, see "Versionen" in README.md.
+# Deliberately not read from .env, so the displayed version always matches the installed files.
+APP_VERSION = "2.1.3"
 APP_DEBUG = os.environ.get("APP_DEBUG", "false").strip().lower() in ("1", "true", "yes")
 APP_PORT = int(os.environ.get("APP_PORT", 5000))
 SESSION_LIFETIME_HOURS = int(os.environ.get("SESSION_LIFETIME_HOURS", 24))
