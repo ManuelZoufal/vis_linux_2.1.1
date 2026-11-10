@@ -11,19 +11,6 @@ async function fetchLogs() {
     });
 }
 
-async function fetchDebugInfo() {
-    const response = await fetch('/api/debug_info');
-    const data = await response.json();
-    const debugTable = document.getElementById('debug-table').getElementsByTagName('tbody')[0];
-    debugTable.replaceChildren();
-    data.debug_info.forEach(info => {
-        const tr = document.createElement('tr');
-        tr.appendChild(createCell(info.timestamp));
-        tr.appendChild(createCell(info.message));
-        debugTable.appendChild(tr);
-    });
-}
-
 const THREAD_STATE_LABELS = {
     ok: 'OK',
     error: 'Fehler',
@@ -89,24 +76,24 @@ async function fetchThreadStatus() {
 
     const okCount = data.threads.filter(thread => thread.state === 'ok').length;
     setThreadSummary(`${okCount} von ${data.threads.length} Threads OK – Stand ${data.server_time}`, false);
+
+    const certificate = document.getElementById('certificate-status');
+    if (certificate && data.certificate) {
+        certificate.textContent = data.certificate.message;
+        certificate.classList.toggle('thread-summary-offline', data.certificate.state !== 'ok');
+    }
 }
 
 function exportLogs() {
     window.location.href = '/api/logs/export';
 }
 
-function exportDebugInfo() {
-    window.location.href = '/api/debug_info/export';
+function exportThreadStatus() {
+    window.location.href = '/api/thread_status/export';
 }
 
 fetchLogs();
 setInterval(fetchLogs, 10000);  // Refresh logs every 10 seconds
-
-// Fetch debug info if the debug table exists
-if (document.getElementById('debug-table')) {
-    fetchDebugInfo();
-    setInterval(fetchDebugInfo, 10000);  // Refresh debug info every 10 seconds
-}
 
 // Live thread status, only rendered for administrators
 if (document.getElementById('thread-table')) {

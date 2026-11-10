@@ -1,6 +1,6 @@
 @import url('base.css');
 
-.logs-section, .debug-section, .thread-section {
+.logs-section, .thread-section {
     background-color: #fff;
     padding: 20px;
     border-radius: 8px;
@@ -8,7 +8,7 @@
     margin-bottom: 20px;
 }
 
-.logs-section h2, .debug-section h2, .thread-section h2 {
+.logs-section h2, .thread-section h2 {
     text-align: center;
     margin-bottom: 20px;
 }

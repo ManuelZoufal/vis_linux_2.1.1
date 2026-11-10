@@ -126,5 +126,24 @@ class IEE(Sensor):
         except requests.RequestException as e:
             self.log_error(f"Error during logout: {e}. Response: {response.text if response else 'No response'}")
             return False
-        
-    
+
+    def check_credentials(self):
+        """
+        Check the password by logging in and out again
+
+        Returns:
+        tuple: (bool, str) - success and a short description
+        """
+        if not self.password:
+            return False, "Kein Passwort hinterlegt"
+        url = f"https://{self.ip_address}/webservice/login"
+        try:
+            response = self.session.post(url, json={'password': self.password}, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
+        except requests.RequestException as e:
+            return False, f"Sensor nicht erreichbar ({type(e).__name__})"
+        if response.status_code in (401, 403):
+            return False, f"Anmeldung abgelehnt (HTTP {response.status_code})"
+        if not response.ok:
+            return False, f"Unerwartete Antwort (HTTP {response.status_code})"
+        self._logout()
+        return True, "Anmeldung erfolgreich"

@@ -7,6 +7,7 @@ from src.sensor_AIHANWHA import AI_HANWHA
 from src.database import save_sensor_values
 from src.config_store import load_config
 from src import thread_status
+from src import sensor_credentials
 
 def load_sensors_from_config(config_path):
     """
@@ -24,10 +25,14 @@ def load_sensors_from_config(config_path):
         if sensor_config['type'] == 'VIRTUAL':
             # Virtual sensors have no device: their occupancy is read from config.json
             continue
+        credentials = {field: value for field, (value, _source) in sensor_credentials.resolve(sensor_config).items()}
+        missing = [field for field, value in credentials.items() if not value]
+        if missing:
+            logging.warning(f"Sensor {sensor_config.get('sensor_id')}: no {' and '.join(missing)} configured (.env or config.json)")
         if sensor_config['type'] == 'IEE':
-            sensor = IEE(sensor_config['sensor_id'], sensor_config['ip_address'], sensor_config['name'], sensor_config['group_id'], sensor_config['password'], sensor_config['datapoint_id'])
+            sensor = IEE(sensor_config['sensor_id'], sensor_config['ip_address'], sensor_config['name'], sensor_config['group_id'], credentials['password'], sensor_config.get('datapoint_id'))
         elif sensor_config['type'] == 'AI_HANWHA':
-            sensor = AI_HANWHA(sensor_config['sensor_id'], sensor_config['ip_address'], sensor_config['name'], sensor_config['group_id'], sensor_config['username'], sensor_config['password'], sensor_config['datapoint_id'])
+            sensor = AI_HANWHA(sensor_config['sensor_id'], sensor_config['ip_address'], sensor_config['name'], sensor_config['group_id'], credentials['username'], credentials['password'], sensor_config.get('datapoint_id'))
         else:
             logging.error(f"Sensor {sensor_config.get('sensor_id')} skipped: unknown type {sensor_config['type']}")
             continue

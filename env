@@ -8,3 +8,7 @@ APP_DEBUG=False
 APP_NAME="XXXX"
 APP_DESCRIPTION="Personenzaehlungssoftware und Belegungsanzeige"
 SESSION_LIFETIME_HOURS=24
+# Zugangsdaten der Sensoren (Standard je Typ). Einzelne Sensoren: SENSOR_<ID>_USERNAME / SENSOR_<ID>_PASSWORD
+# SENSOR_IEE_PASSWORD="XXXXX"
+# SENSOR_HANWHA_USERNAME="XXXXX"
+# SENSOR_HANWHA_PASSWORD="XXXXX"

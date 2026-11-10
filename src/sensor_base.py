@@ -66,4 +66,11 @@ class Sensor:
         """
         self.log_info("No reboot functionality available for this sensor")
 
-    
+    def check_credentials(self):
+        """
+        Check whether the sensor accepts the configured credentials
+
+        Returns:
+        tuple: (bool, str) - success and a short description
+        """
+        return False, "Keine Prüfung für diesen Sensortyp verfügbar"
