@@ -8,7 +8,7 @@ import schedule as schedule_lib
 from threading import Thread
 
 from src.sensor import sensors
-from src.navigator import upload_data_to_navigator
+from src.navigator import upload_data_to_navigator, has_datapoint
 from src.config_store import load_config
 from src import thread_status
 
@@ -95,7 +95,9 @@ def execute_schedule(schedule):
             elif schedule['action'] == 'reboot':
                 success = sensor.reboot_sensor()
             elif schedule['action'] == 'upload':
-                success = upload_data_to_navigator(sensor.datapoint_id, sensor.occupancy, sensor.name)
+                # A sensor without Navigator datapoint has nothing to upload
+                success = (not has_datapoint(sensor.datapoint_id)
+                           or upload_data_to_navigator(sensor.datapoint_id, sensor.occupancy, sensor.name))
             else:
                 success = False
         except Exception as e:

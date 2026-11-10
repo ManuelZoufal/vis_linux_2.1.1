@@ -119,6 +119,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.9 | Navigator: ein Token wird für alle Uploads wiederverwendet statt für jeden Sensor neu angefordert; Sensoren ohne Datenpunkt werden übersprungen; Platzhalterbild für den Wartungsmodus (`static/images/maintenance.png`) |
 | 2.1.8 | Chart.js wird lokal aus `static/vendor/` ausgeliefert statt vom CDN: die Belegungsanzeige funktioniert ohne Internetzugang des Anzeigegeräts |
 | 2.1.7 | Login-Sperre nach wiederholten Fehlversuchen (`LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCK_MINUTES`); Rollenänderungen und gelöschte Benutzer wirken sofort statt erst nach Ablauf der Sitzung; das eigene Konto und der letzte Administrator lassen sich nicht löschen oder herabstufen |
 | 2.1.6 | Zeitstempel folgen der Sommerzeit (`APP_TIMEZONE`, Standard `Europe/Berlin`); Änderungen an `config.json` laufen unter einer Sperre und werden atomar geschrieben; Navigator-Zugangsdaten lassen sich als Administrator unter „Navigator-Zugang“ ändern und testen |
