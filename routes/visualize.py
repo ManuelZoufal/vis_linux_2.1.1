@@ -37,7 +37,8 @@ def configure_visualization():
 @login_required(role=('Administrator', 'Benutzer'))
 def update_marquee():
     """Update the marquee text"""
-    marquee_text = request.form['marquee_text']
+    marquee_text = request.form.get('marquee_text', '')
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     with open(MARQUEE_TEXT_FILE, 'w') as file:
         file.write(marquee_text)
     return render_template('visualize/configure.html', marquee_text=get_marquee_text())

@@ -5,7 +5,6 @@ import time
 import logging
 import requests
 from datetime import datetime, timezone
-from requests.auth import HTTPDigestAuth
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 

@@ -24,10 +24,10 @@ venv/bin/pip install -r requirements.txt
 
 ## Konfiguration
 
-1. `env` nach `.env` kopieren und die Platzhalter ersetzen:
+1. `.env.example` nach `.env` kopieren und die Platzhalter ersetzen:
 
    ```bash
-   cp env .env && chmod 600 .env
+   cp .env.example .env && chmod 600 .env
    ```
 
    | Variable | Bedeutung |
@@ -160,6 +160,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.14 | Aufräumen: ungenutzter Code entfernt (Tabellen `roles` und `schedules`, der Thread „Datenbankauszug“, ungenutzte Importe), Laufzeitdateien und `__pycache__` nicht mehr im Repository, Vorlage `env` heißt `.env.example`; die Seite „Logs“ verträgt ein fehlendes oder beschädigtes Änderungsprotokoll |
 | 2.1.13 | Eingaben bei Gruppen und beim Bearbeiten von Sensoren werden geprüft (Meldung statt Fehlerseite); maximale Belegung wird als Zahl gespeichert; Sensoren, Gruppen und IP-Adressen sortieren numerisch; beim Löschen einer Gruppe werden ihre Bilder entfernt; der Datenpunkt eines noch nie erreichten Sensors geht beim Bearbeiten nicht mehr verloren; Fehlertexte enthalten bei HTTP-Fehlern die Antwort des Sensors |
 | 2.1.12 | Ablaufdatum des Zertifikats unter „Logs“, im Export und als Hinweis für Administratoren ab 30 Tagen vor Ablauf (`CERT_WARN_DAYS`); Zertifikat und Schlüssel sind nicht mehr Teil des Repositorys |
 | 2.1.11 | Sensor-Zugangsdaten in `.env` statt in `config.json`: Standard je Sensortyp (`SENSOR_IEE_PASSWORD`, `SENSOR_HANWHA_USERNAME`, `SENSOR_HANWHA_PASSWORD`) und Einzelwerte je Sensor (`SENSOR_<ID>_USERNAME`, `SENSOR_<ID>_PASSWORD`); Seite „Sensor-Zugang“ zum Ändern, Prüfen und zum Übernehmen der alten Werte aus `config.json` |

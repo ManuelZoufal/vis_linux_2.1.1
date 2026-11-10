@@ -9,12 +9,9 @@ from src import thread_status
 from src import certificate
 
 from flask import jsonify, session, request, send_file, current_app
-from werkzeug.utils import secure_filename
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import logging
-import json
-import sqlite3
 import socket
 import io
 import os
@@ -293,8 +290,12 @@ def get_logs():
     logs = []
     try:
         # Read log messages from the change_log.txt file
+        if not os.path.exists('change_log.txt'):
+            return jsonify({'logs': []}), 200
         with open('change_log.txt', 'r') as file:
             for line in file:
+                if ' - ' not in line:
+                    continue  # skip empty or damaged lines instead of failing the whole request
                 timestamp, message = line.strip().split(' - ', 1)
                 logs.append({'timestamp': timestamp, 'message': message})
         return jsonify({'logs': logs}), 200

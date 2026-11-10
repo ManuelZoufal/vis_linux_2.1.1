@@ -1,10 +1,8 @@
-import json
 import logging
 import time
 
 from src.sensor_IEE import IEE
 from src.sensor_AIHANWHA import AI_HANWHA
-from src.database import save_sensor_values
 from src.config_store import load_config
 from src import thread_status
 from src import sensor_credentials
