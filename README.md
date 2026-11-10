@@ -33,7 +33,7 @@ venv/bin/pip install -r requirements.txt
    | Variable | Bedeutung |
    |---|---|
    | `APP_SECRET_KEY` | Pflicht. Schlüssel für die Sitzungs-Cookies, z. B. aus `python3.11 -c "import secrets; print(secrets.token_hex(32))"` |
-   | `DEFAULT_ADMIN_PASSWORD` | Pflicht. Passwort des Administrators, der bei jedem Start angelegt wird |
+   | `DEFAULT_ADMIN_PASSWORD` | Pflicht. Passwort des Administrators beim ersten Anlegen; ein später geändertes Passwort bleibt erhalten |
    | `DEFAULT_ADMIN_USER` | Benutzername des Administrators (Standard `admin`) |
    | `NAVIGATOR_USERNAME`, `NAVIGATOR_PASSWORD` | Zugangsdaten für Navigator; ohne sie findet kein Upload statt |
    | `APP_PORT` | Port des Webservers (Standard 5000) |
@@ -62,8 +62,11 @@ Danach ist die Oberfläche unter `https://<Server>:<APP_PORT>/` erreichbar.
 
 Hinweise:
 
-- Beim Start wird `sensor_data.db` gelöscht und neu angelegt. Über die Oberfläche angelegte
-  Benutzer gehen dabei verloren.
+- Benutzer und Passwörter in `sensor_data.db` bleiben über Neustarts erhalten. Beim Start werden
+  nur die Zählwerte geleert, weil sie neu von den Sensoren gelesen werden.
+- `DEFAULT_ADMIN_PASSWORD` gilt nur beim ersten Anlegen des Administrators. Ist dessen Passwort
+  verloren, die Anwendung stoppen, `sensor_data.db` löschen und neu starten (alle Benutzer werden
+  dabei entfernt).
 - Nicht parallel zu einer zweiten Instanz mit derselben `config.json` starten: Beide würden
   dieselben Sensoren abfragen, die Zeitpläne (Zurücksetzen, Neustart) doppelt ausführen und
   doppelt an Navigator senden.
