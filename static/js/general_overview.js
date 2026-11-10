@@ -1,3 +1,18 @@
+// Server data is always inserted as text, never as HTML
+function createCell(content) {
+    const td = document.createElement('td');
+    if (content instanceof Node) {
+        td.appendChild(content);
+    } else {
+        td.textContent = content;
+    }
+    return td;
+}
+
+function appendCells(tr, values) {
+    values.forEach(value => tr.appendChild(createCell(value)));
+}
+
 async function fetchAdminData() {
     try {
         const response = await fetch('/api/get_data');
@@ -9,24 +24,16 @@ async function fetchAdminData() {
         document.getElementById('system-time').innerText = data.system_time;
 
         const dbDataTable = document.getElementById('db-data-table').getElementsByTagName('tbody')[0];
-        dbDataTable.innerHTML = '';
+        dbDataTable.replaceChildren();
         (data.sensors || []).sort((a, b) => a.sensor_id.localeCompare(b.sensor_id)).forEach(row => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.sensor_id}</td>
-                <td>${row.name}</td>
-                <td>${row.ip_address}</td>
-                <td>${row.group_id}</td>
-                <td>${row.occupancy}</td>
-                <td>${row.forward_value}</td>
-                <td>${row.backward_value}</td>
-                <td>${row.timestamp || 'N/A'}</td>
-            `;
+            appendCells(tr, [row.sensor_id, row.name, row.ip_address, row.group_id, row.occupancy,
+                row.forward_value, row.backward_value, row.timestamp || 'N/A']);
             dbDataTable.appendChild(tr);
         });
 
         const groupDataTable = document.getElementById('group-data-table').getElementsByTagName('tbody')[0];
-        groupDataTable.innerHTML = '';
+        groupDataTable.replaceChildren();
         (data.groups || []).forEach(group => {
             try {
                 const currentOccupancy = calculateCurrentOccupancy(group.group_id, data.sensors);
@@ -35,15 +42,8 @@ async function fetchAdminData() {
                 if (group.maintenance_mode) {
                     tr.style.backgroundColor = '#ffd6d6';
                 }
-                tr.innerHTML = `
-                    <td>${group.group_id}</td>
-                    <td>${group.name}</td>
-                    <td>${group.max_occupancy}</td>
-                    <td>${currentOccupancy}</td>
-                    <td>${occupancyPercentage}%</td>
-                    <td>${group.welcome_text || ''}</td>
-                    <td>${group.maintenance_mode ? 'Aktiv' : 'Inaktiv'}</td>
-                `;
+                appendCells(tr, [group.group_id, group.name, group.max_occupancy, currentOccupancy,
+                    `${occupancyPercentage}%`, group.welcome_text || '', group.maintenance_mode ? 'Aktiv' : 'Inaktiv']);
                 groupDataTable.appendChild(tr);
             } catch (groupErr) {
                 console.error('Fehler beim Rendern von Gruppe', group, groupErr);

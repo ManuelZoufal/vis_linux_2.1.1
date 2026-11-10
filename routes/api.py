@@ -1,12 +1,12 @@
 from . import api_bp
 
 from src.sensor import sensors
-from src.helpers import get_local_ip, log_change
+from src.helpers import get_local_ip, log_change, api_login_required
 from src.scheduler import add_schedule as scheduler_add_schedule, edit_schedule as scheduler_edit_schedule, delete_schedule as scheduler_delete_schedule
 from src.database import get_connection, save_sensor_values
 from src import thread_status
 
-from flask import jsonify, session, request, send_file, current_app, Response
+from flask import jsonify, session, request, send_file, current_app
 from werkzeug.utils import secure_filename
 from datetime import datetime, timezone, timedelta
 from threading import enumerate as enumerate_threads
@@ -15,9 +15,6 @@ import sqlite3
 import socket
 import io
 import os
-import requests as http_requests
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 # /api
@@ -182,6 +179,7 @@ def get_data():
 
 # /api/logs
 @api_bp.route('/logs')
+@api_login_required()
 def get_logs():
     """
     Get logs
@@ -408,6 +406,7 @@ def export_debug_info():
 
 # /api/sensors/<sensor_id>/reset
 @api_bp.route('/sensors/<sensor_id>/reset', methods=['POST'])
+@api_login_required(role='Administrator')
 def reset_sensor(sensor_id):
     """
     Reset sensor
@@ -456,6 +455,7 @@ def reset_sensor(sensor_id):
 
 # /api/sensors/<sensor_id>/reboot
 @api_bp.route('/sensors/<sensor_id>/reboot', methods=['POST'])
+@api_login_required(role='Administrator')
 def reboot_sensor(sensor_id):
     """
     Reboot sensor
@@ -504,6 +504,7 @@ def reboot_sensor(sensor_id):
 
 # /api/sensors/<sensor_id>/edit
 @api_bp.route('/sensors/<sensor_id>/edit', methods=['POST'])
+@api_login_required(role='Administrator')
 def edit_sensor(sensor_id):
     """
     Edit sensor
@@ -582,6 +583,7 @@ def edit_sensor(sensor_id):
 
 # /api/sensors/virtual/add
 @api_bp.route('/sensors/virtual/add', methods=['PUT'])
+@api_login_required(role='Administrator')
 def add_virtual_sensor():
     """
     Add virtual sensor
@@ -671,6 +673,7 @@ def add_virtual_sensor():
 
 # /api/sensors/virtual/<sensor_id>/edit
 @api_bp.route('/sensors/virtual/<sensor_id>/edit', methods=['POST'])
+@api_login_required(role='Administrator')
 def edit_virtual_sensor(sensor_id):
     """
     Edit virtual sensor
@@ -763,6 +766,7 @@ def edit_virtual_sensor(sensor_id):
 
 # /api/sensors/virtual/<sensor_id>/delete 
 @api_bp.route('/sensors/virtual/<sensor_id>/delete', methods=['DELETE'])
+@api_login_required(role='Administrator')
 def delete_virtual_sensor(sensor_id):
     """
     Delete virtual sensor
@@ -814,6 +818,7 @@ def delete_virtual_sensor(sensor_id):
 
 # /api/groups/add
 @api_bp.route('/groups/add', methods=['PUT'])
+@api_login_required(role='Administrator')
 def add_group():
     """
     Add group
@@ -907,6 +912,7 @@ def add_group():
 
 # /api/groups/<group_id>/edit
 @api_bp.route('/groups/<group_id>/edit', methods=['POST'])
+@api_login_required(role='Administrator')
 def edit_group(group_id):
     """
     Edit group
@@ -989,6 +995,7 @@ def edit_group(group_id):
 
 # /api/groups/<group_id>/delete
 @api_bp.route('/groups/<group_id>/delete', methods=['DELETE'])
+@api_login_required(role='Administrator')
 def delete_group(group_id):
     """
     Delete group
@@ -1053,6 +1060,7 @@ def delete_group(group_id):
 
 # /api/groups/<group_id>/toggle_maintenance_mode
 @api_bp.route('/groups/<group_id>/toggle_maintenance_mode', methods=['POST'])
+@api_login_required(role='Administrator')
 def toggle_maintenance_mode(group_id):
     """
     Toggle maintenance mode
@@ -1117,6 +1125,7 @@ def toggle_maintenance_mode(group_id):
 
 # /api/groups/<group_id>/update-settings
 @api_bp.route('/groups/<group_id>/update-settings', methods=['POST'])
+@api_login_required(role='Administrator')
 def update_group_settings(group_id):
     """
     Update group settings
@@ -1197,6 +1206,7 @@ def update_group_settings(group_id):
 
 # /api/schedules
 @api_bp.route('/schedules')
+@api_login_required(role='Administrator')
 def get_schedulers():
     """
     Get schedulers
@@ -1254,6 +1264,7 @@ def get_schedulers():
 
 # /api/schedules/add
 @api_bp.route('/schedules/add', methods=['PUT'])
+@api_login_required(role='Administrator')
 def add_schedule_route():
     """
     Add schedule
@@ -1366,6 +1377,7 @@ def add_schedule_route():
 
 # /api/schedules/<schedule_id>/edit
 @api_bp.route('/schedules/<schedule_id>/edit', methods=['POST'])
+@api_login_required(role='Administrator')
 def edit_schedule_route(schedule_id):
     """
     Edit schedule
@@ -1456,6 +1468,7 @@ def edit_schedule_route(schedule_id):
 
 # /api/schedules/<schedule_id>/delete
 @api_bp.route('/schedules/<schedule_id>/delete', methods=['DELETE'])
+@api_login_required(role='Administrator')
 def delete_schedule_route(schedule_id):
     """
     Delete schedule
@@ -1529,6 +1542,7 @@ def _upload_folder():
 
 # /api/groups/<group_id>/display_images  (POST = upload, GET = list)
 @api_bp.route('/groups/<group_id>/display_images', methods=['GET', 'POST'])
+@api_login_required(role='Administrator')
 def group_display_images(group_id):
     with open('config.json', 'r') as f:
         config = json.load(f)
@@ -1578,6 +1592,7 @@ def group_display_images(group_id):
 
 # /api/groups/<group_id>/display_images/<int:slot>  (DELETE)
 @api_bp.route('/groups/<group_id>/display_images/<int:slot>', methods=['DELETE'])
+@api_login_required(role='Administrator')
 def delete_group_display_image(group_id, slot):
     if not (0 <= slot < MAX_DISPLAY_IMAGES):
         return jsonify({'status': 'error', 'message': 'Invalid slot (0-2)'}), 400
@@ -1602,54 +1617,3 @@ def delete_group_display_image(group_id, slot):
         json.dump(config, f, indent=4)
     log_change(f"Group {group_id} display image slot {slot} deleted")
     return jsonify({'status': 'success', 'display_images': images}), 200
-
-
-
-# /api/sensors/<sensor_id>/webinterface/  (proxy – strips X-Frame-Options)
-@api_bp.route('/sensors/<sensor_id>/webinterface/', defaults={'subpath': ''})
-@api_bp.route('/sensors/<sensor_id>/webinterface/<path:subpath>')
-def sensor_webinterface_proxy(sensor_id, subpath):
-    with open('config.json', 'r') as f:
-        config = json.load(f)
-    sensor = next((s for s in config['sensors'] if str(s['sensor_id']) == str(sensor_id)), None)
-    if not sensor:
-        return jsonify({'status': 'error', 'message': 'Sensor not found'}), 404
-
-    ip = sensor.get('ip_address', '')
-    if not ip or ip == 'N/A':
-        return jsonify({'status': 'error', 'message': 'No IP address configured'}), 400
-
-    # Try HTTPS first, fall back to HTTP
-    for scheme in ('https', 'http'):
-        target_url = f"{scheme}://{ip}/{subpath}"
-        # Forward original query string
-        if request.query_string:
-            target_url += '?' + request.query_string.decode()
-        try:
-            resp = http_requests.request(
-                method=request.method,
-                url=target_url,
-                headers={k: v for k, v in request.headers if k.lower() not in ('host', 'content-length')},
-                data=request.get_data(),
-                allow_redirects=True,
-                verify=False,
-                timeout=5
-            )
-            # Strip headers that would block iframe embedding
-            excluded = {'x-frame-options', 'content-security-policy', 'transfer-encoding', 'connection'}
-            headers = [(k, v) for k, v in resp.headers.items() if k.lower() not in excluded]
-            return Response(resp.content, status=resp.status_code, headers=headers)
-        except http_requests.exceptions.ConnectionError:
-            continue
-        except http_requests.exceptions.Timeout:
-            return Response('Sensor nicht erreichbar (Timeout)', status=504, content_type='text/plain')
-        except Exception as e:
-            return Response(f'Proxy-Fehler: {e}', status=502, content_type='text/plain')
-
-    return Response('Sensor nicht erreichbar', status=502, content_type='text/plain')
-
-
-
-
-
-

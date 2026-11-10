@@ -2,13 +2,11 @@ async function fetchLogs() {
     const response = await fetch('/api/logs');
     const data = await response.json();
     const logsTable = document.getElementById('logs-table').getElementsByTagName('tbody')[0];
-    logsTable.innerHTML = '';
+    logsTable.replaceChildren();
     data.logs.forEach(log => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${log.timestamp}</td>
-            <td>${log.message}</td>
-        `;
+        tr.appendChild(createCell(log.timestamp));
+        tr.appendChild(createCell(log.message));
         logsTable.appendChild(tr);
     });
 }
@@ -17,13 +15,11 @@ async function fetchDebugInfo() {
     const response = await fetch('/api/debug_info');
     const data = await response.json();
     const debugTable = document.getElementById('debug-table').getElementsByTagName('tbody')[0];
-    debugTable.innerHTML = '';
+    debugTable.replaceChildren();
     data.debug_info.forEach(info => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${info.timestamp}</td>
-            <td>${info.message}</td>
-        `;
+        tr.appendChild(createCell(info.timestamp));
+        tr.appendChild(createCell(info.message));
         debugTable.appendChild(tr);
     });
 }

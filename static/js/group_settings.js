@@ -2,6 +2,29 @@ let currentGroupId = null;
 let groups = [];
 let sensors = [];
 
+// Server data is always inserted as text, never as HTML
+function createCell(content) {
+    const td = document.createElement('td');
+    if (content instanceof Node) {
+        td.appendChild(content);
+    } else {
+        td.textContent = content;
+    }
+    return td;
+}
+
+function appendCells(tr, values) {
+    values.forEach(value => tr.appendChild(createCell(value)));
+}
+
+function createButton(label, className, onClick) {
+    const button = document.createElement('button');
+    button.className = `button ${className}`;
+    button.textContent = label;
+    button.addEventListener('click', onClick);
+    return button;
+}
+
 async function fetchGroupData() {
     const response = await fetch('/api/get_data');
     const data = await response.json();
@@ -9,30 +32,32 @@ async function fetchGroupData() {
     groups = data.groups;
     sensors = data.sensors;
     const groupList = document.getElementById('group-list');
-    groupList.innerHTML = '';
+    groupList.replaceChildren();
     data.groups.sort((a, b) => String(a.group_id).localeCompare(String(b.group_id))).forEach(group => {
         const currentOccupancy = calculateCurrentOccupancy(group.group_id, data.sensors);
         const occupancyPercentage = calculateOccupancyPercentage(currentOccupancy, group.max_occupancy);
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${group.group_id}</td>
-            <td>${group.name}</td>
-            <td>${group.max_occupancy}</td>
-            <td>${currentOccupancy}</td>
-            <td>${occupancyPercentage}%</td>
-            <td>${group.welcome_text || ''}</td>
-            <td>
-                <label class="switch">
-                    <input type="checkbox" ${group.maintenance_mode ? 'checked' : ''} onclick="toggleMaintenanceMode('${group.group_id}', this.checked)">
-                    <span class="slider round"></span>
-                </label>
-            </td>
-            <td>
-                <button class="button button-secondary" onclick="openGroupModal('${group.group_id}')">Bearbeiten</button>
-                <button class="button button-warning" onclick="openImagesModal('${group.group_id}')">Bilder</button>
-                <button class="button button-danger" onclick="confirmDeleteGroup('${group.group_id}')">Löschen</button>
-            </td>
-        `;
+        appendCells(tr, [group.group_id, group.name, group.max_occupancy, currentOccupancy,
+            `${occupancyPercentage}%`, group.welcome_text || '']);
+
+        const toggle = document.createElement('label');
+        toggle.className = 'switch';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = Boolean(group.maintenance_mode);
+        checkbox.addEventListener('click', () => toggleMaintenanceMode(group.group_id, checkbox.checked));
+        const slider = document.createElement('span');
+        slider.className = 'slider round';
+        toggle.append(checkbox, slider);
+        tr.appendChild(createCell(toggle));
+
+        const actions = document.createElement('td');
+        actions.append(
+            createButton('Bearbeiten', 'button-secondary', () => openGroupModal(group.group_id)), ' ',
+            createButton('Bilder', 'button-warning', () => openImagesModal(group.group_id)), ' ',
+            createButton('Löschen', 'button-danger', () => confirmDeleteGroup(group.group_id))
+        );
+        tr.appendChild(actions);
         groupList.appendChild(tr);
     });
 }
@@ -151,25 +176,45 @@ async function renderImageSlots(groupId) {
     const data = await response.json();
     const images = data.display_images || [null, null, null];
     const container = document.getElementById('image-slots-container');
-    container.innerHTML = '';
+    container.replaceChildren();
+    const smallButton = 'padding:6px 12px;font-size:0.9em;';
     for (let slot = 0; slot < 3; slot++) {
         const filename = images[slot] || null;
         const div = document.createElement('div');
         div.style.cssText = 'border:1px solid #ddd;border-radius:8px;padding:12px;margin-bottom:12px;';
-        div.innerHTML = `
-            <strong>Bild ${slot + 1}</strong><br>
-            ${filename
-                ? `<img src="/static/uploads/${filename}" alt="Bild ${slot + 1}" style="max-width:200px;max-height:120px;margin:8px 0;display:block;border-radius:4px;">
-                   <button class="button button-danger" onclick="deleteImage(${slot})" style="padding:6px 12px;font-size:0.9em;">Löschen</button>`
-                : '<span style="color:#999;font-size:0.9em;">Kein Bild</span>'
-            }
-            <div style="margin-top:8px;">
-                <input type="file" id="file-input-${slot}" accept=".png,.jpg,.jpeg,.gif,.webp"  style="display:none;" onchange="uploadImage(${slot})">
-                <button class="button button-secondary" onclick="document.getElementById('file-input-${slot}').click()" style="padding:6px 12px;font-size:0.9em;">
-                    ${filename ? 'Ersetzen' : 'Hochladen'}
-                </button>
-            </div>
-        `;
+
+        const title = document.createElement('strong');
+        title.textContent = `Bild ${slot + 1}`;
+        div.append(title, document.createElement('br'));
+
+        if (filename) {
+            const img = document.createElement('img');
+            img.src = `/static/uploads/${encodeURIComponent(filename)}`;
+            img.alt = `Bild ${slot + 1}`;
+            img.style.cssText = 'max-width:200px;max-height:120px;margin:8px 0;display:block;border-radius:4px;';
+            const deleteButton = createButton('Löschen', 'button-danger', () => deleteImage(slot));
+            deleteButton.style.cssText = smallButton;
+            div.append(img, deleteButton);
+        } else {
+            const empty = document.createElement('span');
+            empty.style.cssText = 'color:#999;font-size:0.9em;';
+            empty.textContent = 'Kein Bild';
+            div.appendChild(empty);
+        }
+
+        const uploadRow = document.createElement('div');
+        uploadRow.style.marginTop = '8px';
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.id = `file-input-${slot}`;
+        fileInput.accept = '.png,.jpg,.jpeg,.gif,.webp';
+        fileInput.style.display = 'none';
+        fileInput.addEventListener('change', () => uploadImage(slot));
+        const uploadButton = createButton(filename ? 'Ersetzen' : 'Hochladen', 'button-secondary', () => fileInput.click());
+        uploadButton.style.cssText = smallButton;
+        uploadRow.append(fileInput, uploadButton);
+        div.appendChild(uploadRow);
+
         container.appendChild(div);
     }
 }

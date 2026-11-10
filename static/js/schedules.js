@@ -1,23 +1,42 @@
 let schedules = [];
 let sensors = [];
 
+// Server data is always inserted as text, never as HTML
+function createCell(content) {
+    const td = document.createElement('td');
+    if (content instanceof Node) {
+        td.appendChild(content);
+    } else {
+        td.textContent = content;
+    }
+    return td;
+}
+
+function appendCells(tr, values) {
+    values.forEach(value => tr.appendChild(createCell(value)));
+}
+
+function createButton(label, className, onClick) {
+    const button = document.createElement('button');
+    button.className = `button ${className}`;
+    button.textContent = label;
+    button.addEventListener('click', onClick);
+    return button;
+}
+
 function renderSchedules(scheduleList){
     const schedulesList = document.getElementById('schedules-list');
-    schedulesList.innerHTML = '';
+    schedulesList.replaceChildren();
     scheduleList.forEach(schedule => {
         const sensorNames = Array.isArray(schedule.sensors) ? schedule.sensors.join(', ') : schedule.sensors;
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${schedule.action}</td>
-            <td>${schedule.interval}</td>
-            <td>${schedule.day || 'N/A'}</td>
-            <td>${schedule.time}</td>
-            <td>${sensorNames}</td>
-            <td>
-                <button class="button button-secondary" onclick="openEditScheduleModal(${schedule.id})">Bearbeiten</button>
-                <button class="button button-danger" onclick="deleteSchedule(${schedule.id})">Löschen</button>
-            </td>
-        `;
+        appendCells(tr, [schedule.action, schedule.interval, schedule.day || 'N/A', schedule.time, sensorNames]);
+        const actions = document.createElement('td');
+        actions.append(
+            createButton('Bearbeiten', 'button-secondary', () => openEditScheduleModal(schedule.id)), ' ',
+            createButton('Löschen', 'button-danger', () => deleteSchedule(schedule.id))
+        );
+        tr.appendChild(actions);
         schedulesList.appendChild(tr);
     });
 }
@@ -35,7 +54,7 @@ async function fetchSensorData() {
     const data = await response.json();
     sensors = data.sensors;
     const sensorSelect = document.getElementById('scheduleSensors');
-    sensorSelect.innerHTML = '';
+    sensorSelect.replaceChildren();
     sensors.forEach(sensor => {
         const option = document.createElement('option');
         option.value = sensor.sensor_id;
