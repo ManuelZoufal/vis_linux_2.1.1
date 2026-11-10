@@ -1,0 +1,92 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    background-color: #f4f4f9;
+}
+
+.navbar {
+    background-color: #009999;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    min-height: 54px;
+}
+
+.navbar a {
+    display: block;
+    color: #fff;
+    text-align: center;
+    padding: 16px 18px;
+    text-decoration: none;
+    font-size: 1em;
+    white-space: nowrap;
+}
+
+.navbar a:hover {
+    background-color: rgba(0,0,0,0.15);
+    color: #fff;
+}
+
+.navbar-version {
+
+    margin-left: auto;
+    color: rgba(255,255,255,0.75);
+    font-size: 0.8em;
+    padding: 0 18px;
+    white-space: nowrap;
+
+}
+
+.row-maintenance {
+    background-color: #ffd6d6 !important;
+}
+
+.container {
+    width: 100%;
+    max-width: 90%;
+    margin: 20px auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.h2 {
+    text-align: center;
+}
+
+.button {
+    display: inline-block;
+    padding: 10px 20px;
+    margin: 10px;
+    font-size: 1.2em;
+    color: #fff;
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+}
+
+.button:hover {
+    background-color: #0056b3;
+}
+
+.button-primary {
+    background-color: #009999; /* Grün */
+}
+
+.button-primary:hover {
+    background-color: #007a7a;
+}
+
+.button-secondary {
+    background-color: #008CBA; /* Blau */
+}
+
+.button-danger {
+    background-color: #f44336; /* Rot */
+}

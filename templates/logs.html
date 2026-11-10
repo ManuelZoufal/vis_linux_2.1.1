@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Logs{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/logs_styles.css') }}">
+
+<div class="logs-section">
+    <h2>Logs</h2>
+    <button class="button button-primary" onclick="exportLogs()">Logs exportieren</button>
+    <table id="logs-table">
+        <thead>
+            <tr>
+                <th>Zeitstempel</th>
+                <th>Nachricht</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Logs will be populated here -->
+        </tbody>
+    </table>
+</div>
+
+{% if session['role'] == 'Administrator' %}
+<div class="debug-section">
+    <h2>Debug-Informationen</h2>
+    <button class="button button-primary" onclick="exportDebugInfo()">Debug-Informationen exportieren</button>
+    <table id="debug-table">
+        <thead>
+            <tr>
+                <th>Zeitstempel</th>
+                <th>Nachricht</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Debug information will be populated here -->
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+{% endblock %}

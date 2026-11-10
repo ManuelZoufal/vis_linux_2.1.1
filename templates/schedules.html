@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Geplante Aktionen{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/schedules_styles.css') }}">
+
+<div class="schedules-section">
+    <h2>Geplante Aktionen</h2>
+    <button class="button button-primary" onclick="openScheduleModal()">Neue geplante Aktion hinzufügen</button>
+    <table class="schedules-table" id="schedules-table">
+        <thead>
+            <tr>
+                <th>Aktion</th>
+                <th>Intervall</th>
+                <th>Tag</th>
+                <th>Uhrzeit</th>
+                <th>Sensoren</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody id="schedules-list">
+            <!-- Schedule rows will be populated here -->
+        </tbody>
+    </table>
+</div>
+
+<!-- Schedule Modal -->
+<div id="scheduleModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('scheduleModal')">&times;</span>
+        <h2 id="scheduleModalTitle">Planmäßige Aktionen</h2>
+        <form id="scheduleForm" class="modal-form">
+            <div class="form-group">
+                <label for="scheduleAction">Aktion</label>
+                <select id="scheduleAction" name="action" required>
+                    <option value="reset">Zählwerte zurücksetzen</option>
+                    <option value="reboot">Neustarten</option>
+                    <option value="upload">In Navigator hochladen</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="scheduleInterval">Intervall</label>
+                <select id="scheduleInterval" name="interval" required>
+                    <option value="every_minute">Minütlich</option>
+                    <option value="every_5_minutes">Alle 5 Minuten</option>
+                    <option value="every_15_minutes">Alle 15 Minuten</option>
+                    <option value="every_30_minutes">Alle 30 Minuten</option>
+                    <option value="hourly">Stündlich</option>
+                    <option value="daily">Täglich</option>
+                    <option value="weekly">Wöchentlich</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="scheduleDay">Tag</label>
+                <select id="scheduleDay" name="day" required>
+                    <option value="monday">Montag</option>
+                    <option value="tuesday">Dienstag</option>
+                    <option value="wednesday">Mittwoch</option>
+                    <option value="thursday">Donnerstag</option>
+                    <option value="friday">Freitag</option>
+                    <option value="saturday">Samstag</option>
+                    <option value="sunday">Sonntag</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="scheduleTime">Uhrzeit</label>
+                <input type="time" id="scheduleTime" name="time" required>
+            </div>
+            <div class="form-group">
+                <label for="scheduleSensors">Sensoren</label>
+                <select id="scheduleSensors" name="sensors" multiple required>
+                    <!-- Sensor options will be populated here -->
+                </select>
+            </div>
+        </form>
+        <button class="button button-primary" onclick="saveSchedule()">Speichern</button>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/schedules.js') }}"></script>
+{% endblock %}

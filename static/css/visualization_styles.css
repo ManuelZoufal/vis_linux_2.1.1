@@ -1,0 +1,29 @@
+@import url('base.css');
+
+.group-section {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.group-section h2 {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.group-list {
+    list-style-type: none;
+    padding: 0;
+}
+
+.group-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+    cursor: pointer;
+}
+
+.group-list li:last-child {
+    border-bottom: none;
+}

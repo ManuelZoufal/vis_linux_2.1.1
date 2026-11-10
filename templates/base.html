@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+</head>
+<body>
+    <div class="navbar">
+        <a href="/general_overview">Allgemeine Informationen</a> <!-- Allgemeine Informationen als Startseite -->
+        <a href="/visualize">Visualisierung</a>
+        {% if session['role'] in ['Administrator', 'Benutzer'] %}
+            <a href="{{ url_for('visualize.configure_visualization') }}">Visualisierung konfigurieren</a> <!-- Neue Registerkarte hinzugefügt -->
+        {% endif %}
+        {% if session['role'] == 'Administrator' %}
+            <a href="/sensor_settings">Sensoreinstellungen</a>
+            <a href="/group_settings">Gruppeneinstellungen</a>
+            <a href="/schedules">Geplante Aktionen</a> <!-- Neue Registerkarte hinzugefügt -->
+            <a href="/logs">Logs</a> <!-- Logs Registerkarte verschoben -->
+            <a href="/admin/users">Benutzerverwaltung</a>
+        {% endif %}
+        {% if session['role'] in ['Administrator', 'Benutzer', 'Betrachter'] %}
+            <a href="/admin/users/reset_password">Passwort ändern</a>
+        {% endif %}
+        
+        {% if session['user_id'] %}
+            <a href="/admin/logout">Abmelden</a>
+        {% else %}
+            <a href="/admin/login">Anmelden</a>
+        {% endif %}
+            <span class="navbar-version">v{{ app_version }}</span>
+    </div>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Belegungsanzeige</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index_styles.css') }}">
+</head>
+<body>
+    <div class="visualization-wrapper">
+        <h1 id="greeting">Belegungsanzeige</h1>
+        <div id="visualization-section" class="main-layout" style="display:none;">
+            <div class="images-panel" id="images-panel"></div>
+            <div class="chart-panel">
+                <div class="occupancy-label">Die aktuelle Belegung ist</div>
+                <div class="chart-container">
+                    <canvas id="occupancyChart"></canvas>
+                </div>
+            </div>
+            <div class="traffic-light-container">
+                <div id="trafficLight" class="traffic-light">
+                    <div class="light red"></div>
+                    <div class="light green"></div>
+                </div>
+                <div id="statusText" class="status-text">Bitte warten Sie!</div>
+            </div>
+        </div>
+        <div id="maintenance-section" class="maintenance-section" style="display: none;">
+            <img src="{{ url_for('static', filename='images/maintenance.png') }}" alt="Wartung" class="maintenance-image">
+            <h2>Wartungsmodus</h2>
+            <p>Die Zählung für diese Gruppe ist im Moment nicht verfügbar.</p>
+        </div>
+        <div class="marquee-container">
+            <marquee id="marquee-text">{{ marquee_text }}</marquee>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/display.js') }}"></script>
+</body>
+</html>

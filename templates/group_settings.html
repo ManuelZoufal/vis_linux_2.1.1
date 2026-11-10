@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Gruppeneinstellungen{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/group_styles.css') }}">
+    <div class="group-section">
+        <h2>Gruppeneinstellungen</h2>
+        <button class="button button-primary" onclick="openGroupModal()">Gruppe hinzufügen</button>
+        <table class="group-table" id="group-table">
+            <thead>
+                <tr>
+                    <th>Gruppen-ID</th>
+                    <th>Name</th>
+                    <th>Maximale Belegung</th>
+                    <th>Aktuelle Belegung</th>
+                    <th>Prozentuale Auslastung</th>
+                    <th>Willkommenstext</th>
+                    <th>Wartungsmodus</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody id="group-list">
+                <!-- Group rows will be populated here -->
+            </tbody>
+        </table>
+    </div>
+
+<!-- Group Modal -->
+<div id="groupModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('groupModal')">&times;</span>
+        <h2 id="groupModalTitle">Gruppen Einstellungen</h2>
+        <form id="groupForm" class="modal-form">
+            <div class="form-group">
+                <label for="groupId">Gruppen-ID</label>
+                <input type="text" id="groupId" name="group_id" readonly>
+            </div>
+            <div class="form-group">
+                <label for="groupName">Name</label>
+                <input type="text" id="groupName" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="groupMaxOccupancy">Maximale Belegung</label>
+                <input type="number" id="groupMaxOccupancy" name="max_occupancy" required>
+            </div>
+            <div class="form-group">
+                <label for="groupWelcomeText">Willkommenstext</label>
+                <input type="text" id="groupWelcomeText" name="welcome_text" required>
+            </div>
+            <div class="form-group">
+                <label for="groupMaintenanceMode">Wartungsmodus</label>
+                <label class="switch">
+                    <input type="checkbox" id="groupMaintenanceMode" name="maintenance_mode">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+        </form>
+        <button class="button button-primary" onclick="saveGroupSettings()">Speichern</button>
+    </div>
+</div>
+
+<!-- Images Modal -->
+<div id="imagesModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal('imagesModal')">&times;</span>
+        <h2 id="imagesModalTitle">Anzeigebilder</h2>
+        <p style="color:#666;margin-bottom:16px;">Bis zu 3 Bilder für die Visualisierungsanzeige (optional). Erlaubte Formate: PNG, JPG, GIF, WebP.</p>
+        <div id="image-slots-container">
+            <!-- Slots 0, 1, 2 rendered by JS -->
+        </div>
+    </div>
+</div>
+
+    <script src="{{ url_for('static', filename='js/group_settings.js') }}"></script>
+    {% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Visualisierung konfigurieren{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_styles.css') }}">
+
+<div class="admin-section">
+    <h2>Visualisierung konfigurieren</h2>
+    <form method="POST" enctype="multipart/form-data" class="admin-form">
+        <div class="form-group">
+            <label for="file">Hintergrundbild hochladen:</label>
+            <input type="file" id="file" name="file" required>
+        </div>
+        <button type="submit" class="button button-primary">Hochladen</button>
+    </form>
+    <form method="POST" action="{{ url_for('visualize.update_marquee') }}" class="admin-form">
+        <div class="form-group">
+            <label for="marquee_text">Laufschrift Text:</label>
+            <input type="text" id="marquee_text" name="marquee_text" value="{{ marquee_text }}" required>
+        </div>
+        <button type="submit" class="button button-primary">Text aktualisieren</button>
+    </form>
+    <script src="{{ url_for('static', filename='js/configure_visualization.js') }}"></script>
+</div>
+{% endblock %}

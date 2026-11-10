@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Allgemeine Informationen{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/general_overview.css') }}">
+
+    <div class="admin-section">
+        <h2>Allgemeine Informationen</h2>
+        <!-- Content for general information -->
+
+    <div class="system-info">
+        <p>Lokale IP: <span id="local-ip"></span></p>
+        <p>Server-Hostname: <span id="server-hostname"></span></p>
+        <p>Systemzeit: <span id="system-time"></span></p>
+    </div>
+    <hr>
+    <h3>Datenbankauszug:</h3>
+    <table id="db-data-table">
+        <thead>
+            <tr>
+                <th>Sensor-ID</th>
+                <th>Sensorname</th>
+                <th>IP-Adresse</th>
+                <th>Gruppen-ID</th>
+                <th>Belegung</th>
+                <th>Vorwärtswert</th>
+                <th>Rückwärtswert</th>
+                <th>Zeitstempel</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data will be populated here -->
+        </tbody>
+    </table>
+    <hr>
+    <h3>Gruppendaten:</h3>
+    <table id="group-data-table">
+        <thead>
+            <tr>
+                <th>Gruppen-ID</th>
+                <th>Name</th>
+                <th>Maximale Belegung</th>
+                <th>Aktuelle Belegung</th>
+                <th>Prozentuale Auslastung</th>
+                <th>Willkommenstext</th>
+                <th>Wartungsmodus</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Group data will be populated here -->
+        </tbody>
+    </table>
+</div>
+
+<script src="{{ url_for('static', filename='js/general_overview.js') }}"></script>
+{% endblock %}

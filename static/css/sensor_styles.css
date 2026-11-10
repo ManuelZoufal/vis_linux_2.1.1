@@ -1,0 +1,163 @@
+@import url('base.css');
+
+/* Basisstile für die gesamte Seite */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    padding: 20px;
+}
+
+.sensor-section {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.sensor-section h2 {
+    text-align: center;
+}
+
+.sensor-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.sensor-table th, .sensor-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.sensor-table th {
+    background-color: #f2f2f2;
+}
+
+/* Einheitliches Design für die Buttons */
+.button {
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+}
+
+.button:hover {
+    opacity: 0.8;
+}
+
+.button-primary {
+    background-color: #4CAF50; /* Grün */
+}
+
+.button-secondary {
+    background-color: #008CBA; /* Blau */
+}
+
+.button-danger {
+    background-color: #f44336; /* Rot */
+}
+
+.button-warning {
+    background-color: #ff9800; /* Orange */
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgb(0,0,0);
+    background-color: rgba(0,0,0,0.4);
+    padding-top: 60px;
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    border-radius: 8px;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Stile für die neuen Spalten und Buttons */
+.sensor-table th:nth-child(4), .sensor-table td:nth-child(4) {
+    width: 15%;
+}
+
+.sensor-table th:nth-child(5), .sensor-table td:nth-child(5) {
+    width: 15%;
+}
+
+.sensor-table th:nth-child(6), .sensor-table td:nth-child(6) {
+    width: 25%;
+}
+
+.sensor-table td button {
+    margin-right: 5px;
+}
+
+/* Stile für die Formulare in den Modals */
+.modal-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: #4CAF50;
+    outline: none;
+}
+
+.form-group input[readonly] {
+    background-color: #f4f4f9;
+}

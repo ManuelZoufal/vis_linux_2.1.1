@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_styles.css') }}">
+
+<div class="admin-section">
+    <h2>Login</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    <form method="POST" class="admin-form admin-form-change-password">
+        <div class="form-group">
+            <label for="username">Benutzername:</label>
+            <input type="text" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Passwort:</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <div class="form-group">
+            <input type="checkbox" id="remember_me" name="remember_me">
+            <label for="remember_me">Angemeldet bleiben</label>
+        </div>
+        <button type="submit" class="button button-primary">Login</button>
+    </form>
+</div>
+{% endblock %}

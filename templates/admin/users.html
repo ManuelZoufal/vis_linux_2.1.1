@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Benutzerverwaltung{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_styles.css') }}">
+
+<div class="admin-section">
+    <h2>Benutzerverwaltung</h2>
+    <a href="{{ url_for('admin.add_user') }}" class="button button-primary">Neuen Benutzer hinzufügen</a>
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Benutzername</th>
+                <th>Rolle</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.role }}</td>
+                <td>
+                    <a href="{{ url_for('admin.edit_user', id=user.id) }}" class="button button-secondary">Bearbeiten</a>
+                   
+                    <form action="{{ url_for('admin.delete_user', id=user.id) }}" method="POST" style="display:inline;">
+                        <button type="submit" class="button button-danger">Löschen</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

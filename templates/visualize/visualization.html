@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Visualisierung{% endblock %}
+
+{% block content %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/visualization_styles.css') }}">
+
+        <div class="group-section">
+            <h2>Visualisierung</h2>
+            <ul class="group-list" id="group-list"></ul>
+        </div>
+
+    <script src="{{ url_for('static', filename='js/visualize.js') }}"></script>
+{% endblock %}
