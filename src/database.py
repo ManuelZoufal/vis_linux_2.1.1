@@ -5,6 +5,8 @@ import time
 
 from werkzeug.security import generate_password_hash
 
+from src import thread_status
+
 def create_sensor_table(conn):
     """
     Create sensor_data table
@@ -228,6 +230,7 @@ def db_output_thread(interval):
         #for row in rows:
             #print(f"ID: {row['sensor_id']} | Name: {row['sensor_name']} | IP: {row['ip_address']} | Group: {row['group_id']} | Forward: {row['forward_value']} | Backward: {row['backward_value']} | Occupancy: {row['occupancy']} | Datapoint ID: {row['datapoint_id']} | Timestamp: {row['timestamp']}")
         conn.close()
+        thread_status.report_success(f"{len(rows)} Zeilen")
         time.sleep(interval)
 
 

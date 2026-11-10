@@ -32,6 +32,7 @@ class IEE(Sensor):
         otherwise
         """
         url = f"https://{self.ip_address}/webservice/getoutput"
+        response = None
         try:
             response = self.session.get(url, verify=False, proxies={})
             response.raise_for_status()
@@ -55,6 +56,7 @@ class IEE(Sensor):
         """
         if self._authenticate():
             url = f"https://{self.ip_address}/webservice/reset_counters"
+            response = None
             try:
                 response = self.session.post(url, verify=False, proxies={})
                 response.raise_for_status()
@@ -76,6 +78,7 @@ class IEE(Sensor):
         """
         if self._authenticate():
             url = f"https://{self.ip_address}/webservice/reboot"
+            response = None
             try:
                 response = self.session.post(url, verify=False, proxies={})
                 response.raise_for_status()
@@ -96,6 +99,7 @@ class IEE(Sensor):
         otherwise
         """
         url = f"https://{self.ip_address}/webservice/login"
+        response = None
         try:
             response = self.session.post(url, json={'password': self.password}, verify=False, proxies={})
             response.raise_for_status()
@@ -113,6 +117,7 @@ class IEE(Sensor):
         bool: True if logged out successfully, False otherwise
         """
         url = f"https://{self.ip_address}/webservice/logout"
+        response = None
         try:
             response = self.session.post(url, verify=False, proxies={})
             response.raise_for_status()

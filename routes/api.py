@@ -4,6 +4,7 @@ from src.sensor import sensors
 from src.helpers import get_local_ip, log_change
 from src.scheduler import add_schedule as scheduler_add_schedule, edit_schedule as scheduler_edit_schedule, delete_schedule as scheduler_delete_schedule
 from src.database import get_connection, save_sensor_values
+from src import thread_status
 
 from flask import jsonify, session, request, send_file, current_app, Response
 from werkzeug.utils import secure_filename
@@ -278,6 +279,65 @@ def get_debug_info():
             })
         return jsonify({'debug_info': debug_info}), 200
     return jsonify({'error': 'Unauthorized to view debug information'}), 403
+
+# /api/thread_status
+@api_bp.route('/thread_status')
+def get_thread_status():
+    """
+    Get the live status of the background threads
+    ---
+    get:
+      description: Returns one entry per background thread (sensor polling, Navigator upload, scheduler, database output)
+      responses:
+        200:
+          description: Thread status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server_time:
+                    type: string
+                    example: 2023-01-01 12:00:00
+                  threads:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          example: SensorThread-1
+                        label:
+                          type: string
+                          example: "Sensor 1: Eingang"
+                        state:
+                          type: string
+                          description: ok, error, stale (no report for too long), starting, stopped or not_started
+                          example: ok
+                        last_success:
+                          type: string
+                          example: 2023-01-01 12:00:00
+                        last_error:
+                          type: string
+                          example: Abfrage fehlgeschlagen
+                        last_error_time:
+                          type: string
+                          example: 2023-01-01 11:59:00
+                        run_count:
+                          type: integer
+                          example: 120
+                        error_count:
+                          type: integer
+                          example: 2
+        403:
+          description: Unauthorized to view thread status
+    """
+    if 'role' in session and session['role'] == 'Administrator':
+        return jsonify({
+            'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'threads': thread_status.snapshot()
+        }), 200
+    return jsonify({'error': 'Unauthorized to view thread status'}), 403
 
 # /api/export_logs
 @api_bp.route('/logs/export')

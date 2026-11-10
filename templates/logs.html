@@ -22,6 +22,26 @@
 </div>
 
 {% if session['role'] == 'Administrator' %}
+<div class="thread-section">
+    <h2>Thread-Status</h2>
+    <p id="thread-summary" class="thread-summary">Lade Thread-Status …</p>
+    <table id="thread-table">
+        <thead>
+            <tr>
+                <th>Thread</th>
+                <th>Status</th>
+                <th>Letzter Erfolg</th>
+                <th>Durchläufe</th>
+                <th>Fehler</th>
+                <th>Letzter Fehler</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Thread status will be populated here -->
+        </tbody>
+    </table>
+</div>
+
 <div class="debug-section">
     <h2>Debug-Informationen</h2>
     <button class="button button-primary" onclick="exportDebugInfo()">Debug-Informationen exportieren</button>

@@ -24,6 +24,7 @@ class Sensor:
         self.forward_value = 0
         self.backward_value = 0
         self.occupancy = 0
+        self.last_error = None
 
     def log_info(self, message):
         """
@@ -41,6 +42,7 @@ class Sensor:
         Args:
         message (str): Message to log
         """
+        self.last_error = message
         logging.error(f"{self.name}: {message}")
 
     def fetch_sensor_values(self):

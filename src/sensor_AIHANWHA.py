@@ -72,6 +72,7 @@ class AI_HANWHA(Sensor):
         Reset sensor values"
         """
         url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=databasereset&action=control&IncludeDataType=PeopleCount"
+        response = None
         try:
             response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, proxies={"http": None, "https": None})
             response.raise_for_status()
@@ -86,6 +87,7 @@ class AI_HANWHA(Sensor):
         Reboot sensor
         """
         url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=power&action=control&Type=Restart"
+        response = None
         try:
             response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, proxies={"http": None, "https": None})
             response.raise_for_status()

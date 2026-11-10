@@ -25,6 +25,7 @@ from src.sensor import load_sensors_from_config, sensor_thread  # Import sensor 
 from src.scheduler import start_scheduler  # Import scheduler functions
 from src.navigator import upload_data_to_navigator, navigator_thread  # Import navigator functions
 from src.helpers import login_required
+from src import thread_status
 
 
 APP_VERSION = "2.1.0"
@@ -49,9 +50,6 @@ app.register_blueprint(admin_bp, url_prefix='/admin')
 with open('config.json', 'r') as file:
     config = json.load(file)
 
-# Global list to store thread statuses
-thread_statuses = []
-
 # Redirect to HTTPS
 @app.before_request
 def before_request():
@@ -63,15 +61,24 @@ def before_request():
     #print('Before request')
     #print('Endpoint: ', request.endpoint, ' | Path', request.path)
 
-# Thread Management: Monitor threads and store their status
+# Thread Management: Threads report their status to src.thread_status (shown live on the logs page)
 
-def monitor_thread(name, target, *args):
+def monitor_thread(target, *args):
+    thread_status.bind()
     try:
         target(*args)
     except Exception as e:
-        thread_statuses.append({'name': name, 'status': 'error', 'error': str(e)})
+        logging.exception(f"Thread {threading.current_thread().name} crashed")
+        thread_status.report_ended(f"{type(e).__name__}: {e}")
     else:
-        thread_statuses.append({'name': name, 'status': 'running'})
+        thread_status.report_ended()
+
+def start_monitored_thread(name, label, interval, target, *args):
+    thread_status.register(name, label, interval)
+    thread = threading.Thread(target=monitor_thread, args=(target, *args), name=name)
+    thread.daemon = True
+    thread.start()
+    return thread
 
 # Main-Program
 if __name__ == "__main__":
@@ -82,27 +89,14 @@ if __name__ == "__main__":
     db_output_interval = 30  # Intervall in Sekunden für Datenbankauszug
     navigator_interval = 60  # Intervall in Sekunden für Upload zu Navigator
 
-    threads = []
     for sensor in sensors:
-        thread = threading.Thread(target=monitor_thread, args=(f"SensorThread-{sensor.sensor_id}", sensor_thread, sensor, sensor_interval), name=f"SensorThread-{sensor.name}")
-        thread.daemon = True
-        threads.append(thread)
-        thread.start()
+        start_monitored_thread(f"SensorThread-{sensor.sensor_id}", f"Sensor {sensor.sensor_id}: {sensor.name}", sensor_interval, sensor_thread, sensor, sensor_interval)
 
-    db_thread = threading.Thread(target=monitor_thread, args=("DBOutputThread", db_output_thread, db_output_interval), name="DBOutputThread")
-    db_thread.daemon = True
-    threads.append(db_thread)
-    db_thread.start()
+    start_monitored_thread("DBOutputThread", "Datenbankauszug", db_output_interval, db_output_thread, db_output_interval)
+    start_monitored_thread("NavigatorUploadThread", "Navigator-Upload", navigator_interval, navigator_thread, navigator_interval)
 
-    navigator_thread = threading.Thread(target=monitor_thread, args=("NavigatorUploadThread", navigator_thread, navigator_interval), name="NavigatorUploadThread")
-    navigator_thread.daemon = True
-    threads.append(navigator_thread)
-    navigator_thread.start()
-
-    scheduler_thread = threading.Thread(target=monitor_thread, args=("SchedulerThread", start_scheduler, 'config.json'), name="SchedulerThread")
-    scheduler_thread.daemon = True
-    threads.append(scheduler_thread)
-    scheduler_thread.start()
+    # The scheduler registers and starts its own thread
+    start_scheduler('config.json')
 
     for sensor in sensors:
         upload_data_to_navigator(sensor.datapoint_id, sensor.occupancy, sensor.name)

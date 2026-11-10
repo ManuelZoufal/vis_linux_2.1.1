@@ -9,6 +9,7 @@ from requests.auth import HTTPDigestAuth
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 from src.database import get_connection
+from src import thread_status
 
 from requests.exceptions import ConnectionError, HTTPError, RequestException
 
@@ -138,12 +139,19 @@ def navigator_thread(interval):
             cursor.execute('SELECT * FROM sensor_data')
             rows = cursor.fetchall()
             conn.close()
+            failed = 0
             for sensor in rows:
                 success = upload_data_to_navigator(sensor['datapoint_id'], sensor['occupancy'], sensor['sensor_name'])
                 if not success:
+                    failed += 1
                     logging.warning(f"Upload failed for {sensor['sensor_name']}")
+            if failed:
+                thread_status.report_error(f"{failed} von {len(rows)} Uploads fehlgeschlagen")
+            else:
+                thread_status.report_success(f"{len(rows)} Uploads")
 
         except Exception as e:
             logging.error(f"Navigator thread failed with error: {e}")
+            thread_status.report_error(f"{type(e).__name__}: {e}")
 
         time.sleep(interval)

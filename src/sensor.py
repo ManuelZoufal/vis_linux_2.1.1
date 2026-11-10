@@ -4,6 +4,7 @@ import time
 from src.sensor_IEE import IEE
 from src.sensor_AIHANWHA import AI_HANWHA
 from src.database import save_sensor_values
+from src import thread_status
 
 def load_sensors_from_config(config_path):
     """
@@ -39,9 +40,12 @@ def sensor_thread(sensor, interval):
     """
     while True:
         try:
-            sensor.fetch_sensor_values()
-        except:
-            pass
+            if sensor.fetch_sensor_values():
+                thread_status.report_success()
+            else:
+                thread_status.report_error(sensor.last_error or "Abfrage fehlgeschlagen")
+        except Exception as e:
+            thread_status.report_error(f"{type(e).__name__}: {e}")
         time.sleep(interval)
 
 sensors = load_sensors_from_config('config.json')

@@ -7,6 +7,10 @@ from threading import Thread
 
 from src.sensor import sensors
 from src.navigator import upload_data_to_navigator
+from src import thread_status
+
+SCHEDULER_THREAD_NAME = 'SchedulerThread'
+SCHEDULER_INTERVAL = 1  # Sekunden zwischen zwei Pruefungen auf faellige Zeitplaene
 
 
 
@@ -81,13 +85,23 @@ def schedule_thread(config_path):
     Returns:
     None
     """
-    schedules = load_schedule_from_config(config_path)
-    for schedule in schedules:
-        schedule_job(schedule)
-        print(f"Added schedule: {schedule}")
-    while True:
-        schedule_lib.run_pending()
-        time.sleep(1)
+    thread_status.bind()
+    try:
+        schedules = load_schedule_from_config(config_path)
+        for schedule in schedules:
+            schedule_job(schedule)
+            print(f"Added schedule: {schedule}")
+        while True:
+            # A failing job must not end the thread, otherwise all schedules stop
+            try:
+                schedule_lib.run_pending()
+                thread_status.report_success(f"{len(schedule_lib.get_jobs())} Zeitpläne aktiv")
+            except Exception as e:
+                thread_status.report_error(f"{type(e).__name__}: {e}")
+            time.sleep(SCHEDULER_INTERVAL)
+    except Exception as e:
+        thread_status.report_ended(f"{type(e).__name__}: {e}")
+        raise
 
 def start_scheduler(config_path):
     """
@@ -99,7 +113,8 @@ def start_scheduler(config_path):
     Returns:
     None
     """
-    thread = Thread(target=schedule_thread, args=(config_path,))
+    thread_status.register(SCHEDULER_THREAD_NAME, 'Scheduler (geplante Aktionen)', SCHEDULER_INTERVAL)
+    thread = Thread(target=schedule_thread, args=(config_path,), name=SCHEDULER_THREAD_NAME)
     thread.daemon = True
     thread.start()
 
