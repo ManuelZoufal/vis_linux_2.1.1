@@ -39,6 +39,7 @@ venv/bin/pip install -r requirements.txt
    | `SENSOR_IEE_PASSWORD` | Passwort für alle IEE-Sensoren |
    | `SENSOR_HANWHA_USERNAME`, `SENSOR_HANWHA_PASSWORD` | Zugangsdaten für alle Hanwha-Sensoren |
    | `SENSOR_<ID>_USERNAME`, `SENSOR_<ID>_PASSWORD` | Abweichende Zugangsdaten eines einzelnen Sensors, z. B. `SENSOR_7_PASSWORD`; haben Vorrang vor dem Standard des Typs |
+   | `CERT_WARN_DAYS` | Ab so vielen Tagen vor Ablauf des Zertifikats sehen Administratoren einen Hinweis (Standard 30) |
    | `LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCK_MINUTES` | Login-Sperre: nach so vielen Fehlversuchen (Standard 5) für einen Benutzernamen von einer Adresse sind weitere Versuche so viele Minuten (Standard 15) gesperrt. Ein Neustart hebt alle Sperren auf |
    | `APP_TIMEZONE` | Zeitzone für angezeigte Zeitstempel (Standard `Europe/Berlin`) |
    | `APP_PORT` | Port des Webservers (Standard 5000) |
@@ -54,7 +55,8 @@ venv/bin/pip install -r requirements.txt
    in `config.json` werden weiterhin gelesen, wenn in der `.env` nichts hinterlegt ist.
 
 3. Zertifikat und Schlüssel des Webservers als `Webserver_IP.crt` und `Webserver_IP.pem`
-   im Programmverzeichnis ablegen.
+   im Programmverzeichnis ablegen (siehe Abschnitt „Zertifikat“). Beide Dateien gehören nicht
+   ins Repository und stehen in `.gitignore`.
 
 ## Start
 
@@ -83,6 +85,40 @@ Hinweise:
   ```bash
   sudo firewall-cmd --permanent --add-port=<APP_PORT>/tcp && sudo firewall-cmd --reload
   ```
+
+## Zertifikat
+
+Ohne `Webserver_IP.crt` und `Webserver_IP.pem` bricht der Start mit einer Meldung ab. Das Ablaufdatum
+steht für Administratoren unter „Logs“; ab `CERT_WARN_DAYS` Tagen vor Ablauf erscheint auf jeder Seite ein Hinweis.
+Die Anwendung lädt das Zertifikat nur beim Start, ein Tausch wird also erst nach einem Neustart wirksam.
+
+Neues Zertifikat von der eigenen CA ausstellen (`ca.crt`, `ca.key`):
+
+```bash
+openssl genrsa -out Webserver_IP.pem 2048
+```
+
+```bash
+openssl req -new -key Webserver_IP.pem -out Webserver_IP.csr -subj "/C=DE/O=<Organisation>/CN=<Name>"
+```
+
+Datei `san.ext` mit der Adresse, über die die Geräte den Server aufrufen:
+
+```
+subjectAltName = IP:<SERVER-IP>
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+```
+
+```bash
+openssl x509 -req -in Webserver_IP.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out Webserver_IP.crt -days 365 -sha256 -extfile san.ext
+```
+
+```bash
+chmod 600 Webserver_IP.pem
+```
+
+Der Schlüssel darf kein Passwort haben und muss für den Benutzer lesbar sein, unter dem die Anwendung läuft.
 
 ## Betrieb als Dienst (Beispiel)
 
@@ -124,6 +160,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.12 | Ablaufdatum des Zertifikats unter „Logs“, im Export und als Hinweis für Administratoren ab 30 Tagen vor Ablauf (`CERT_WARN_DAYS`); Zertifikat und Schlüssel sind nicht mehr Teil des Repositorys |
 | 2.1.11 | Sensor-Zugangsdaten in `.env` statt in `config.json`: Standard je Sensortyp (`SENSOR_IEE_PASSWORD`, `SENSOR_HANWHA_USERNAME`, `SENSOR_HANWHA_PASSWORD`) und Einzelwerte je Sensor (`SENSOR_<ID>_USERNAME`, `SENSOR_<ID>_PASSWORD`); Seite „Sensor-Zugang“ zum Ändern, Prüfen und zum Übernehmen der alten Werte aus `config.json` |
 | 2.1.10 | Abschnitt „Debug-Informationen“ unter „Logs“ entfernt (zeigte nur „is active“ je Thread, die Angabe „inactive“ konnte nie erscheinen); stattdessen lässt sich der Thread-Status als Textdatei exportieren |
 | 2.1.9 | Navigator: ein Token wird für alle Uploads wiederverwendet statt für jeden Sensor neu angefordert; Sensoren ohne Datenpunkt werden übersprungen; Platzhalterbild für den Wartungsmodus (`static/images/maintenance.png`) |

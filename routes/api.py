@@ -6,6 +6,7 @@ from src.scheduler import add_schedule as scheduler_add_schedule, edit_schedule 
 from src.database import get_connection, save_sensor_values
 from src.config_store import load_config, save_config, with_config_lock
 from src import thread_status
+from src import certificate
 
 from flask import jsonify, session, request, send_file, current_app
 from werkzeug.utils import secure_filename
@@ -316,7 +317,8 @@ def get_thread_status():
     if 'role' in session and session['role'] == 'Administrator':
         return jsonify({
             'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'threads': thread_status.snapshot()
+            'threads': thread_status.snapshot(),
+            'certificate': certificate.get_status()
         }), 200
     return jsonify({'error': 'Unauthorized to view thread status'}), 403
 
@@ -361,6 +363,7 @@ def export_thread_status():
         f"Version:   {current_app.config.get('APP_VERSION', 'unbekannt')}",
         f"Server:    {socket.gethostname()}",
         f"Übersicht: {ok_count} von {len(threads)} Threads OK",
+        f"TLS:       {certificate.get_status()['message']}",
         '',
     ]
     for thread in threads:

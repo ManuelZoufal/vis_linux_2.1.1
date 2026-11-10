@@ -91,3 +91,11 @@ body {
 .button-danger {
     background-color: #f44336; /* Rot */
 }
+
+.certificate-banner {
+    padding: 10px 18px;
+    text-align: center;
+    font-weight: bold;
+}
+.certificate-banner.certificate-warning { background-color: #fff3cd; color: #7a5b00; }
+.certificate-banner.certificate-expired { background-color: #f8d7da; color: #842029; }

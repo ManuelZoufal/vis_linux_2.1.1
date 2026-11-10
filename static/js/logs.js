@@ -76,6 +76,12 @@ async function fetchThreadStatus() {
 
     const okCount = data.threads.filter(thread => thread.state === 'ok').length;
     setThreadSummary(`${okCount} von ${data.threads.length} Threads OK – Stand ${data.server_time}`, false);
+
+    const certificate = document.getElementById('certificate-status');
+    if (certificate && data.certificate) {
+        certificate.textContent = data.certificate.message;
+        certificate.classList.toggle('thread-summary-offline', data.certificate.state !== 'ok');
+    }
 }
 
 function exportLogs() {

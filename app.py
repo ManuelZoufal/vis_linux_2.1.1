@@ -15,7 +15,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Version of this code. Raised with every update, see "Versionen" in README.md.
 # Deliberately not read from .env, so the displayed version always matches the installed files.
-APP_VERSION = "2.1.11"
+APP_VERSION = "2.1.12"
 APP_DEBUG = os.environ.get("APP_DEBUG", "false").strip().lower() in ("1", "true", "yes")
 APP_PORT = int(os.environ.get("APP_PORT", 5000))
 SESSION_LIFETIME_HOURS = int(os.environ.get("SESSION_LIFETIME_HOURS", 24))
@@ -43,6 +43,7 @@ from src.scheduler import start_scheduler  # Import scheduler functions
 from src.navigator import navigator_thread  # Import navigator functions
 from src import thread_status
 from src.helpers import refresh_session_user
+from src import certificate
 
 app = Flask(__name__)
 app.secret_key = os.environ["APP_SECRET_KEY"]
@@ -64,7 +65,7 @@ app.register_blueprint(admin_bp, url_prefix='/admin')
 
 @app.context_processor
 def inject_version():
-    return {'app_version': APP_VERSION}
+    return {'app_version': APP_VERSION, 'certificate': certificate.get_status()}
 
 
 # Redirect to HTTPS
@@ -105,6 +106,13 @@ if __name__ == "__main__":
     DB_OUTPUT_INTERVAL = 30  # Intervall in Sekunden für Datenbankauszug
     NAVIGATOR_INTERVAL = 60  # Intervall in Sekunden für Upload zu Navigator
 
+    # Certificate and key are not part of the repository, see "Zertifikat" in README.md
+    missing_files = [path for path in (certificate.CERT_FILE, certificate.KEY_FILE) if not os.path.exists(path)]
+    if missing_files:
+        sys.exit(f"[VIS-START] Abbruch: Datei(en) fehlen: {', '.join(missing_files)} (siehe README.md, Abschnitt Zertifikat)")
+    cert_status = certificate.load()
+    logging.log(logging.INFO if cert_status['state'] == 'ok' else logging.WARNING, f"[VIS-START] {cert_status['message']}")
+
     init_db()
 
     for sensor in sensors:
@@ -120,7 +128,7 @@ if __name__ == "__main__":
     app.run(
         debug=APP_DEBUG,
         use_reloader=False,
-        ssl_context=('Webserver_IP.crt', 'Webserver_IP.pem'),
+        ssl_context=(certificate.CERT_FILE, certificate.KEY_FILE),
         host='0.0.0.0',
         port=APP_PORT,
     )
