@@ -10,7 +10,6 @@ from src import thread_status
 from flask import jsonify, session, request, send_file, current_app
 from werkzeug.utils import secure_filename
 from datetime import datetime, timezone, timedelta
-from threading import enumerate as enumerate_threads
 from zoneinfo import ZoneInfo
 import logging
 import json
@@ -262,60 +261,6 @@ def get_logs():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-# /api/debug_info
-@api_bp.route('/debug_info')
-def get_debug_info():
-    """
-    Get debug information
-    ---
-    get:
-      description: Returns a JSON object with debug information
-      responses:
-        200:
-          description: Debug information
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  debug_info:
-                    type: array
-                    description: An array of debug messages
-                    items:
-                      type: object
-                      properties:
-                        timestamp:
-                          type: string
-                          description: The timestamp of the debug message
-                          example:
-                        message:
-                          type: string
-                          description: The debug message
-                          example:
-        403:
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: Unauthorized
-    """
-    # Check if the user is an administrator
-    if 'role' in session and session['role'] == 'Administrator':
-        # Get debug information from the threads
-        debug_info = []
-        # Enumerate all threads and check if they are active
-        for thread in enumerate_threads():
-            debug_info.append({
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'message': f'Thread "{thread.name}" is {"active" if thread.is_alive() else "inactive"}'
-            })
-        return jsonify({'debug_info': debug_info}), 200
-    return jsonify({'error': 'Unauthorized to view debug information'}), 403
-
 # /api/thread_status
 @api_bp.route('/thread_status')
 def get_thread_status():
@@ -375,6 +320,68 @@ def get_thread_status():
         }), 200
     return jsonify({'error': 'Unauthorized to view thread status'}), 403
 
+THREAD_STATE_LABELS = {
+    'ok': 'OK',
+    'error': 'Fehler',
+    'stale': 'Keine Rückmeldung',
+    'starting': 'Startet',
+    'stopped': 'Beendet',
+    'not_started': 'Nicht gestartet',
+}
+
+
+# /api/thread_status/export
+@api_bp.route('/thread_status/export')
+def export_thread_status():
+    """
+    Export the status of the background threads
+    ---
+    get:
+      description: Returns the current thread status as a text file download
+      responses:
+        200:
+          description: Thread status exported successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                format: binary
+        403:
+          description: Unauthorized to export thread status
+    """
+    if not ('role' in session and session['role'] == 'Administrator'):
+        return jsonify({'error': 'Unauthorized to export thread status'}), 403
+
+    now = datetime.now()
+    threads = thread_status.snapshot()
+    ok_count = sum(1 for thread in threads if thread['state'] == 'ok')
+    lines = [
+        'VIS Thread-Status',
+        f"Erstellt:  {now.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Version:   {current_app.config.get('APP_VERSION', 'unbekannt')}",
+        f"Server:    {socket.gethostname()}",
+        f"Übersicht: {ok_count} von {len(threads)} Threads OK",
+        '',
+    ]
+    for thread in threads:
+        state = THREAD_STATE_LABELS.get(thread['state'], thread['state'])
+        lines.append(f"[{state}] {thread['label']}")
+        lines.append(f"    Thread-Name:     {thread['name']}")
+        lines.append(f"    Intervall:       {thread['interval']} s")
+        lines.append(f"    Gestartet:       {thread['started_at'] or '-'}")
+        lines.append(f"    Letzter Erfolg:  {thread['last_success'] or '-'}")
+        lines.append(f"    Durchläufe:      {thread['run_count']} (davon Fehler: {thread['error_count']})")
+        if thread['detail']:
+            lines.append(f"    Letzte Meldung:  {thread['detail']}")
+        if thread['last_error']:
+            lines.append(f"    Letzter Fehler:  {thread['last_error_time']}")
+            lines.append(f"                     {thread['last_error']}")
+        lines.append('')
+
+    content = io.BytesIO('\r\n'.join(lines).encode('utf-8'))
+    return send_file(content, as_attachment=True, mimetype='text/plain; charset=utf-8',
+                     download_name=f"thread_status_{now.strftime('%Y%m%d_%H%M%S')}.txt")
+
 # /api/export_logs
 @api_bp.route('/logs/export')
 def export_logs():
@@ -406,41 +413,6 @@ def export_logs():
         # Return the change_log.txt file as an attachment
         return send_file('change_log.txt', as_attachment=True)
     return jsonify({'error': 'Unauthorized to export logs'}), 403
-
-# /api/export_debug_info
-@api_bp.route('/debug_info/export')
-def export_debug_info():
-    """
-    Export debug information
-    ---
-    get:
-      description: Returns a file download of the debug information
-      responses:
-        200:
-          description: File download
-          content:
-            application/octet-stream:
-              schema:
-                type: file
-        403:
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: Unauthorized
-    """
-    # Check if the user is an administrator
-    if 'role' in session and session['role'] == 'Administrator':
-        lines = []
-        for thread in enumerate_threads():
-            lines.append(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Thread \"{thread.name}\" is {'active' if thread.is_alive() else 'inactive'}\n")
-        content = io.BytesIO(''.join(lines).encode('utf-8'))
-        return send_file(content, as_attachment=True, download_name='debug_info.txt', mimetype='text/plain')        
-    return jsonify({'error': 'Unauthorized to export debug information'}), 403
 
 # /api/sensors/<sensor_id>/reset
 @api_bp.route('/sensors/<sensor_id>/reset', methods=['POST'])
