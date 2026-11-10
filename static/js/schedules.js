@@ -66,6 +66,7 @@ async function fetchSensorData() {
 function openScheduleModal() {
     document.getElementById('scheduleForm').reset();
     document.getElementById('scheduleModalTitle').innerText = 'Neue geplante Aktion hinzufügen';
+    document.getElementById('saveScheduleButton').onclick = () => saveSchedule();
     document.getElementById('scheduleModal').style.display = 'block';
 }
 
@@ -114,7 +115,9 @@ async function saveSchedule(scheduleId = null) {
         fetchSchedules();
         closeModal('scheduleModal');
     } else {
-        alert('Fehler beim Speichern der planmäßigen Aktion');
+        let message = `HTTP ${response.status}`;
+        try { message = (await response.json()).message || message; } catch (_) {}
+        alert('Fehler beim Speichern der planmäßigen Aktion: ' + message);
     }
 }
 

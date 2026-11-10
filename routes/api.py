@@ -2,7 +2,7 @@ from . import api_bp
 
 from src.sensor import sensors
 from src.helpers import get_local_ip, log_change, api_login_required
-from src.scheduler import add_schedule as scheduler_add_schedule, edit_schedule as scheduler_edit_schedule, delete_schedule as scheduler_delete_schedule
+from src.scheduler import add_schedule as scheduler_add_schedule, edit_schedule as scheduler_edit_schedule, delete_schedule as scheduler_delete_schedule, validate_schedule
 from src.database import get_connection, save_sensor_values
 from src import thread_status
 
@@ -1347,32 +1347,35 @@ def add_schedule_route():
     "type: string"
     "example: Error message
     """
+    data = request.get_json(silent=True) or {}
+    new_schedule = {
+        "action": data.get('action'),
+        "interval": data.get('interval'),
+        "day": data.get('day', ''),
+        "time": data.get('time', ''),
+        "sensors": data.get('sensors')
+    }
+    problem = validate_schedule(new_schedule)
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
 
-    data = request.json
     with open('config.json', 'r') as file:
         config = json.load(file)
-    
+
     # Find the next available integer for schedule_id
     existing_schedule_ids = [schedule['id'] for schedule in config.get('schedules', [])]
-    next_schedule_id = max(existing_schedule_ids) + 1 if existing_schedule_ids else 1
+    new_schedule = {"id": max(existing_schedule_ids) + 1 if existing_schedule_ids else 1, **new_schedule}
 
-    new_schedule = {
-        "id": next_schedule_id,  # Use the next available integer
-        "action": data['action'],
-        "interval": data['interval'],
-        "day": data['day'],
-        "time": data['time'],
-        "sensors": data['sensors']
-    }
     if 'schedules' not in config:
         config['schedules'] = []
     config['schedules'].append(new_schedule)
     with open('config.json', 'w') as file:
         json.dump(config, file, indent=4)
-    
+
     # Add the new schedule to the scheduler
     scheduler_add_schedule(new_schedule)
-    
+    log_change(f"Schedule {new_schedule['id']} added: action={new_schedule['action']}, interval={new_schedule['interval']}, day={new_schedule['day']}, time={new_schedule['time']}, sensors={new_schedule['sensors']}")
+
     return jsonify({'status': 'success', 'schedule': new_schedule}), 200
 
 # /api/schedules/<schedule_id>/edit
@@ -1446,25 +1449,32 @@ def edit_schedule_route(schedule_id):
                     type: string
                     example: Schedule not found
     """
-    data = request.json
+    data = request.get_json(silent=True) or {}
     with open('config.json', 'r') as file:
         config = json.load(file)
-    
-    schedules = config.get('schedules', [])
-    for schedule in schedules:
-        if schedule['id'] == schedule_id:
-            schedule.update(data)
-            break
-    else:
+
+    # Compare as strings: the id is an integer in config.json and a string in the URL
+    schedule = next((s for s in config.get('schedules', []) if str(s.get('id')) == str(schedule_id)), None)
+    if not schedule:
         return jsonify({'status': 'error', 'message': 'Schedule not found'}), 404
-    
+
+    updated = dict(schedule)
+    for key in ('action', 'interval', 'day', 'time', 'sensors'):
+        if key in data:
+            updated[key] = data[key]
+    problem = validate_schedule(updated)
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
+
+    schedule.update(updated)
     with open('config.json', 'w') as file:
         json.dump(config, file, indent=4)
-    
-    # Edit the schedule in the scheduler
-    scheduler_edit_schedule(schedule_id, data)
-    
-    return jsonify({'status': 'success', 'schedule': data}), 200
+
+    # Replace the job in the scheduler
+    scheduler_edit_schedule(schedule['id'], schedule)
+    log_change(f"Schedule {schedule['id']} edited: action={schedule['action']}, interval={schedule['interval']}, day={schedule['day']}, time={schedule['time']}, sensors={schedule['sensors']}")
+
+    return jsonify({'status': 'success', 'schedule': schedule}), 200
 
 # /api/schedules/<schedule_id>/delete
 @api_bp.route('/schedules/<schedule_id>/delete', methods=['DELETE'])
@@ -1510,21 +1520,22 @@ def delete_schedule_route(schedule_id):
     """
     with open('config.json', 'r') as file:
         config = json.load(file)
-        all_schedules = config.get('schedules', [])
-        # Vergleich als String, um Typ-Mismatches (int vs str) zu vermeiden
-        schedules = [s for s in all_schedules if str(s.get('id')) != str(schedule_id)]
-    
+    all_schedules = config.get('schedules', [])
+    # Compare as strings: the id is an integer in config.json and a string in the URL
+    removed = [s for s in all_schedules if str(s.get('id')) == str(schedule_id)]
+    schedules = [s for s in all_schedules if str(s.get('id')) != str(schedule_id)]
+    if not removed:
+        return jsonify({'status': 'error', 'message': 'Schedule not found'}), 404
+
     config['schedules'] = schedules
     with open('config.json', 'w') as file:
         json.dump(config, file, indent=4)
-    
-    # Delete the schedule from the scheduler
-    try:
-        scheduler_delete_schedule(int(schedule_id))
-    except Exception:
-        pass    
 
-    
+    # Remove the job from the scheduler, so it stops running immediately
+    for schedule in removed:
+        scheduler_delete_schedule(schedule['id'])
+        log_change(f"Schedule {schedule['id']} deleted")
+
     return jsonify({'status': 'success', 'schedules': schedules})
 
 
