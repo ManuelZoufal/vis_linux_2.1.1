@@ -7,7 +7,9 @@
 
         <div class="group-section">
             <h2>Visualisierung</h2>
-            <ul class="group-list" id="group-list"></ul>
+            <p class="group-hint" id="group-hint">Lade Gruppen …</p>
+            <!-- One tile per group with a scaled-down live view of its display, filled by visualize.js -->
+            <div class="group-tiles" id="group-tiles"></div>
         </div>
 
     <script src="{{ url_for('static', filename='js/visualize.js') }}"></script>

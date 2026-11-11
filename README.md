@@ -190,6 +190,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.21 | Seite „Visualisierung“ als Kachelansicht: je Gruppe eine große Kachel mit der verkleinerten, live laufenden Belegungsanzeige als Vorschau; ein Klick öffnet die Anzeige |
 | 2.1.20 | Automatische Tests (`tests/`, siehe Abschnitt „Tests“). Zwei Befunde der Tests behoben: das Skript der Seite „Visualisierung konfigurieren“ löste beim Laden einen Fehler aus und wurde entfernt (das Formular funktioniert ohne es); der Export des Änderungsprotokolls nennt die Datei jetzt mit vollem Pfad |
 | 2.1.19 | Weniger Protokollvolumen: erfolgreiche Abfragen, Uploads und die Zeilen des Webservers je Anfrage stehen nur noch im Debug-Modus im Server-Log; das Änderungsprotokoll ist wie die anderen Protokolle auf `LOG_MAX_MB` begrenzt, und die Seite „Logs“ lädt nur die neuesten 500 Einträge (neueste zuerst). Das ausführliche Server-Log lässt sich unter „Logs“ für 15 Minuten bis 24 Stunden ohne Neustart einschalten |
 | 2.1.18 | Hanwha-Kameras: Der Ausweichweg über HTTP greift jetzt auch, wenn die Kamera die Verbindung auf Port 443 annimmt, aber den TLS-Handshake nicht abschließt; die TLS-Fähigkeit wird vor dem Senden eines Steuerbefehls geprüft |
