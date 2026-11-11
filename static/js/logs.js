@@ -15,6 +15,7 @@ const THREAD_STATE_LABELS = {
     ok: 'OK',
     error: 'Fehler',
     stale: 'Keine Rückmeldung',
+    idle: 'Keine Zählung',
     starting: 'Startet',
     stopped: 'Beendet',
     not_started: 'Nicht gestartet'
@@ -75,7 +76,10 @@ async function fetchThreadStatus() {
     });
 
     const okCount = data.threads.filter(thread => thread.state === 'ok').length;
-    setThreadSummary(`${okCount} von ${data.threads.length} Threads OK – Stand ${data.server_time}`, false);
+    // Sensors without counting are neither OK nor faulty, so they are counted separately
+    const idleCount = data.threads.filter(thread => thread.state === 'idle').length;
+    setThreadSummary(`${okCount} von ${data.threads.length - idleCount} Threads OK`
+        + (idleCount ? `, ${idleCount} ohne Zählung` : '') + ` – Stand ${data.server_time}`, false);
 
     const certificate = document.getElementById('certificate-status');
     if (certificate && data.certificate) {

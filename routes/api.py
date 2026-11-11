@@ -3,7 +3,7 @@ from . import api_bp
 from src.sensor import sensors
 from src.helpers import get_local_ip, log_change, api_login_required
 from src.scheduler import add_schedule as scheduler_add_schedule, edit_schedule as scheduler_edit_schedule, delete_schedule as scheduler_delete_schedule, validate_schedule
-from src.database import get_connection, save_sensor_values
+from src.database import get_connection, save_sensor_values, delete_sensor_values
 from src.config_store import load_config, save_config, with_config_lock
 from src import thread_status
 from src import certificate
@@ -232,7 +232,8 @@ def get_data():
         'backward_value': next((row[4] for row in db_data if row[0] == sensor['sensor_id']), 0),
         'datapoint_id': sensor.get('datapoint_id') or 'N/A',
         'timestamp': next((row[6] for row in db_data if row[0] == sensor['sensor_id']), 'N/A'),
-        'type': sensor['type']
+        'type': sensor['type'],
+        'counting': sensor.get('counting', True) is not False
     } for sensor in config['sensors']]
 
     # Convert timestamps to the desired timezone
@@ -368,6 +369,7 @@ THREAD_STATE_LABELS = {
     'ok': 'OK',
     'error': 'Fehler',
     'stale': 'Keine Rückmeldung',
+    'idle': 'Keine Zählung',
     'starting': 'Startet',
     'stopped': 'Beendet',
     'not_started': 'Nicht gestartet',
@@ -399,12 +401,13 @@ def export_thread_status():
     now = datetime.now()
     threads = thread_status.snapshot()
     ok_count = sum(1 for thread in threads if thread['state'] == 'ok')
+    idle_count = sum(1 for thread in threads if thread['state'] == 'idle')
     lines = [
         'VIS Thread-Status',
         f"Erstellt:  {now.strftime('%Y-%m-%d %H:%M:%S')}",
         f"Version:   {current_app.config.get('APP_VERSION', 'unbekannt')}",
         f"Server:    {socket.gethostname()}",
-        f"Übersicht: {ok_count} von {len(threads)} Threads OK",
+        f"Übersicht: {ok_count} von {len(threads) - idle_count} Threads OK" + (f", {idle_count} ohne Zählung" if idle_count else ""),
         f"TLS:       {certificate.get_status()['message']}",
         '',
     ]
@@ -709,11 +712,14 @@ def reset_sensor(sensor_id):
                     example: Sensor not found
     """
     sensor = next((s for s in sensors if s.sensor_id == sensor_id), None)
-    if sensor:
-        sensor.reset_sensor_values()
+    if not sensor:
+        return jsonify({'status': 'error', 'message': 'Sensor not found'}), 404
+    if not sensor.counting:
+        return jsonify({'status': 'error', 'message': 'Dieser Sensor wird nicht für die Zählung verwendet'}), 400
+    if sensor.reset_sensor_values():
         log_change(f"Sensor {sensor_id} reset")
         return jsonify({'status': 'success'}), 200
-    return jsonify({'status': 'error', 'message': 'Sensor not found'}), 404
+    return jsonify({'status': 'error', 'message': sensor.last_action_error or 'Zurücksetzen fehlgeschlagen'}), 502
 
 # /api/sensors/<sensor_id>/reboot
 @api_bp.route('/sensors/<sensor_id>/reboot', methods=['POST'])
@@ -758,11 +764,12 @@ def reboot_sensor(sensor_id):
                     example: Sensor not found
     """
     sensor = next((s for s in sensors if s.sensor_id == sensor_id), None)
-    if sensor:
-        sensor.reboot_sensor()
+    if not sensor:
+        return jsonify({'status': 'error', 'message': 'Sensor not found'}), 404
+    if sensor.reboot_sensor():
         log_change(f"Sensor {sensor_id} rebooted")
         return jsonify({'status': 'success'}), 200
-    return jsonify({'status': 'error', 'message': 'Sensor not found'}), 404
+    return jsonify({'status': 'error', 'message': sensor.last_action_error or 'Neustart fehlgeschlagen'}), 502
 
 # /api/sensors/<sensor_id>/edit
 @api_bp.route('/sensors/<sensor_id>/edit', methods=['POST'])
@@ -837,20 +844,35 @@ def edit_sensor(sensor_id):
     datapoint_id = str(data.get('datapoint_id', sensor.datapoint_id) or '').strip()
     if datapoint_id.upper() == 'N/A':
         datapoint_id = ''  # "N/A" is what the user interface shows for a missing datapoint
+    counting = data.get('counting', sensor.counting)
+    if not isinstance(counting, bool):
+        return jsonify({'status': 'error', 'message': 'Zählung aktiv muss true oder false sein'}), 400
 
     # Only now change the sensor object, so a rejected request leaves it untouched
     sensor.name = name
     sensor.group_id = group_id
     sensor.datapoint_id = datapoint_id
+    counting_changed = counting != sensor.counting
+    sensor.counting = counting
     for sensor_config in config['sensors']:
         if sensor_config['sensor_id'] == sensor_id:
             sensor_config['name'] = name
             sensor_config['group_id'] = group_id
             sensor_config['datapoint_id'] = datapoint_id
+            sensor_config['counting'] = counting
             break
     save_config(config)
-    log_change(f"Sensor {sensor_id} edited: name={sensor.name}, group_id={sensor.group_id}, datapoint_id={sensor.datapoint_id}")
-    save_sensor_values(sensor)
+    log_change(f"Sensor {sensor_id} edited: name={sensor.name}, group_id={sensor.group_id}, datapoint_id={sensor.datapoint_id}, counting={sensor.counting}")
+    if counting:
+        save_sensor_values(sensor)
+    else:
+        # Without counting the sensor has no values: it neither counts towards its group nor is it uploaded
+        sensor.forward_value = sensor.backward_value = sensor.occupancy = 0
+        delete_sensor_values(sensor_id)
+    if counting_changed:
+        event_log.event('info', f"SensorThread-{sensor_id}",
+                        "Zählung aktiviert" if counting else "Zählung deaktiviert: keine Abfrage, kein Zurücksetzen, kein Upload zu Navigator",
+                        f"Sensor {sensor_id}: {name}")
     return jsonify({'status': 'success'}), 200
 
 # /api/sensors/virtual/add

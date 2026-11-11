@@ -27,8 +27,13 @@ async function fetchAdminData() {
         dbDataTable.replaceChildren();
         (data.sensors || []).sort((a, b) => String(a.sensor_id).localeCompare(String(b.sensor_id), undefined, { numeric: true })).forEach(row => {
             const tr = document.createElement('tr');
-            appendCells(tr, [row.sensor_id, row.name, row.ip_address, row.group_id, row.occupancy,
-                row.forward_value, row.backward_value, row.timestamp || 'N/A']);
+            if (row.counting === false) {
+                // Device without counting (e.g. heat map camera): no values to show
+                appendCells(tr, [row.sensor_id, row.name, row.ip_address, row.group_id, '–', '–', '–', 'keine Zählung']);
+            } else {
+                appendCells(tr, [row.sensor_id, row.name, row.ip_address, row.group_id, row.occupancy,
+                    row.forward_value, row.backward_value, row.timestamp || 'N/A']);
+            }
             dbDataTable.appendChild(tr);
         });
 

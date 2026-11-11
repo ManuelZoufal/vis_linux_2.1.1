@@ -96,6 +96,7 @@ class Sensor:
         self.forward_value = 0
         self.backward_value = 0
         self.occupancy = 0
+        self.counting = True            # False: the device is not used for counting (e.g. heat map camera)
         self.last_error = None          # short reason of the last failed query
         self.last_action_error = None   # short reason of the last failed reset, reboot or login
 
