@@ -9,6 +9,9 @@ async function fetchLogs() {
         tr.appendChild(createCell(log.message));
         logsTable.appendChild(tr);
     });
+    document.getElementById('logs-summary').textContent = data.truncated
+        ? `Die neuesten ${data.logs.length} Einträge, neueste zuerst. Der Export enthält alle.`
+        : `${data.logs.length} Einträge, neueste zuerst.`;
 }
 
 const THREAD_STATE_LABELS = {

@@ -288,23 +288,29 @@ def get_logs():
                     type: string
                     example: Error message
     """
-    # Get the log messages from the session
-    logs = []
+    # Only the newest entries are read, from the end of the file, so the request
+    # stays fast however large the change log has become
     try:
-        # Read log messages from the change_log.txt file
-        if not os.path.exists('change_log.txt'):
-            return jsonify({'logs': []}), 200
-        with open('change_log.txt', 'r') as file:
-            for line in file:
+        limit = max(1, min(int(request.args.get('limit', 500)), 5000))
+    except ValueError:
+        limit = 500
+    logs = []
+    truncated = False
+    try:
+        if os.path.exists('change_log.txt'):
+            for line in event_log.lines_backwards('change_log.txt'):
                 if ' - ' not in line:
                     continue  # skip empty or damaged lines instead of failing the whole request
+                if len(logs) >= limit:
+                    truncated = True
+                    break
                 timestamp, message = line.strip().split(' - ', 1)
                 logs.append({'timestamp': timestamp, 'message': message})
-        return jsonify({'logs': logs}), 200
+        return jsonify({'logs': logs, 'truncated': truncated, 'limit': limit}), 200
     # Handle exceptions
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
+
 # /api/thread_status
 @api_bp.route('/thread_status')
 def get_thread_status():

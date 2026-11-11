@@ -4,8 +4,10 @@ from functools import wraps
 from flask import session, redirect, url_for, jsonify, request
 
 import os
+import threading
 
 from src.database import get_connection
+from src import event_log
 
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -31,10 +33,27 @@ def get_local_ip():
         s.close()
     return local_ip
 
+CHANGE_LOG_FILE = 'change_log.txt'
+_change_log_lock = threading.Lock()
+
+
 def log_change(message):
+    """
+    Write an entry to the change log
+
+    The file is limited to LOG_MAX_MB like the other log files: when it is
+    full it becomes change_log.txt.1 and a new one is started.
+
+    Args:
+    message (str): Description of the change
+    """
+    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {event_log.shorten(message, 2000)}\n"
     try:
-        with open('change_log.txt', 'a') as log_file:
-            log_file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
+        with _change_log_lock:
+            if os.path.exists(CHANGE_LOG_FILE) and os.path.getsize(CHANGE_LOG_FILE) + len(line.encode('utf-8')) > event_log.MAX_BYTES:
+                os.replace(CHANGE_LOG_FILE, CHANGE_LOG_FILE + '.1')
+            with open(CHANGE_LOG_FILE, 'a', encoding='utf-8') as log_file:
+                log_file.write(line)
     except Exception as e:
         print(f"[LOG ERROR] Could not write to change_log.txt: {e}")
 

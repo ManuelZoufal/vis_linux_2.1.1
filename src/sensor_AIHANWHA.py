@@ -55,7 +55,7 @@ class AI_HANWHA(Sensor):
                 self.backward_value = backward_value_line1 + backward_value_line2
                 self.occupancy = self.forward_value - self.backward_value
                 save_sensor_values(self)
-                self.log_info(f"Sensor values fetched successfully for sensor {self.name} via {protocol.upper()}, Response: {response.text}")
+                self.log_debug(f"Sensor values fetched successfully via {protocol.upper()}, Response: {event_log.shorten(response.text, 200)}")
                 return True
 
             except RequestException as e:
@@ -135,7 +135,7 @@ class AI_HANWHA(Sensor):
                 event_log.event('info', f"SensorThread-{self.sensor_id}",
                                 f"Steuerbefehle gehen ab jetzt über {scheme.upper()}, weil {failures[0] if failures else 'der andere Weg nicht antwortete'}",
                                 f"Sensor {self.sensor_id}: {self.name}")
-            self.log_info(f"{what} erfolgreich über {scheme.upper()}. Response: {response.status_code} | {response.text}")
+            self.log_info(f"{what} erfolgreich über {scheme.upper()}. Response: {response.status_code} | {event_log.shorten(response.text, 200)}")
             return True
         self.last_action_error = f"{what} fehlgeschlagen: {'; '.join(failures)}"
         return False

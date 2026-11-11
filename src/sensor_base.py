@@ -109,6 +109,16 @@ class Sensor:
         """
         logging.info(f"{self.name}: {message}")
 
+    def log_debug(self, message):
+        """
+        Log a routine message that is only of interest while debugging,
+        e.g. every successful query (one per sensor every few seconds)
+
+        Args:
+        message (str): Message to log
+        """
+        logging.debug(f"{self.name}: {message}")
+
     def log_error(self, message):
         """
         Log error message

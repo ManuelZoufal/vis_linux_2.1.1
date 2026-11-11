@@ -95,7 +95,7 @@ def event(kind, source, message, label=None):
         logging.warning(f"Event log could not be written: {e}")
 
 
-def _lines_backwards(path, block_size=65536):
+def lines_backwards(path, block_size=65536):
     """Yield the lines of a text file from the last to the first without reading it completely"""
     with open(path, 'rb') as file:
         file.seek(0, os.SEEK_END)
@@ -133,7 +133,7 @@ def read_events(hours=24, source=None, limit=2000):
     for path in (base, base + '.1'):
         if not os.path.exists(path):
             continue
-        for line in _lines_backwards(path):
+        for line in lines_backwards(path):
             try:
                 entry = json.loads(line)
             except ValueError:

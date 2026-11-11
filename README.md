@@ -171,6 +171,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.19 | Weniger Protokollvolumen: erfolgreiche Abfragen, Uploads und die Zeilen des Webservers je Anfrage stehen nur noch im Debug-Modus im Server-Log; das Änderungsprotokoll ist wie die anderen Protokolle auf `LOG_MAX_MB` begrenzt, und die Seite „Logs“ lädt nur die neuesten 500 Einträge (neueste zuerst) |
 | 2.1.18 | Hanwha-Kameras: Der Ausweichweg über HTTP greift jetzt auch, wenn die Kamera die Verbindung auf Port 443 annimmt, aber den TLS-Handshake nicht abschließt; die TLS-Fähigkeit wird vor dem Senden eines Steuerbefehls geprüft |
 | 2.1.17 | Schalter „Zählung aktiv“ je Sensor (`"counting": false` in `config.json`) für Geräte ohne Zählfunktion, z. B. Heatmap-Kameras: keine Abfrage, kein Zurücksetzen, kein Upload zu Navigator, kein Beitrag zur Belegung; Neustart bleibt möglich; im Thread-Status „Keine Zählung“ statt Fehler; Zurücksetzen und Neustart melden den Grund, wenn sie scheitern |
 | 2.1.16 | Hanwha-Kameras: Zurücksetzen und Neustart gehen über HTTP, wenn die Kamera auf HTTPS nicht antwortet; der funktionierende Weg wird gemerkt und im Ereignisprotokoll vermerkt |
