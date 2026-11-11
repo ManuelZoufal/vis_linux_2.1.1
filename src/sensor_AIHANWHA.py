@@ -4,7 +4,8 @@ from requests.auth import HTTPDigestAuth
 from requests.exceptions import RequestException
 
 from src.database import save_sensor_values
-from src.sensor_base import Sensor, LoggingSession, REQUEST_TIMEOUT
+from src.sensor_base import Sensor, LoggingSession, REQUEST_TIMEOUT, short_reason
+from src import event_log
 
 class AI_HANWHA(Sensor):
     def __init__(self, sensor_id, ip_address, name, group_id, username, password, datapoint_id):
@@ -24,6 +25,7 @@ class AI_HANWHA(Sensor):
         self.password = password
         self.username = username
         self.session = LoggingSession(f"SensorThread-{sensor_id}")
+        self._control_scheme = 'https'  # scheme that last worked for reset and reboot
 
     def fetch_sensor_values(self):
         """
@@ -59,37 +61,62 @@ class AI_HANWHA(Sensor):
 
         return False
 
-    def reset_sensor_values(self):
+    def _control(self, what, query):
         """
-        Reset sensor values"
+        Send a control command (reset, reboot) to the camera
+
+        HTTPS is tried first. If the camera does not answer on HTTPS at all
+        (no connection), the command is sent over HTTP, which is also what the
+        counter values are read with. The scheme that worked is tried first the
+        next time. An answer from the camera, even an error, is never repeated
+        over the other scheme, and neither is a command whose answer timed out,
+        because the camera may already have executed it.
+
+        Args:
+        what (str): "Zurücksetzen" or "Neustart", for the messages
+        query (str): Query string of system.cgi
+
+        Returns:
+        bool: True if the camera accepted the command
         """
         self.last_action_error = None
-        url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=databasereset&action=control&IncludeDataType=PeopleCount"
-        response = None
-        try:
-            response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
-            response.raise_for_status()
-            self.log_info(f"Sensor values reset successfully. Response: {response.status_code} | {response.text}")
+        schemes = [self._control_scheme] + [s for s in ('https', 'http') if s != self._control_scheme]
+        failures = []
+        for scheme in schemes:
+            url = f"{scheme}://{self.ip_address}/stw-cgi/system.cgi?{query}"
+            response = None
+            try:
+                response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
+                response.raise_for_status()
+            except requests.exceptions.ConnectionError as e:
+                # No connection on this scheme: note it and try the other one
+                failures.append(f"{scheme.upper()}: {short_reason(e, response)}")
+                self.log_failure(f"{what} über {scheme.upper()}", e, response, remember=False)
+                continue
+            except requests.RequestException as e:
+                self.log_failure(what, e, response, action=True)
+                return False
+            if scheme != self._control_scheme:
+                self._control_scheme = scheme
+                event_log.event('info', f"SensorThread-{self.sensor_id}",
+                                f"Steuerbefehle gehen ab jetzt über {scheme.upper()}, weil {failures[0] if failures else 'der andere Weg nicht antwortete'}",
+                                f"Sensor {self.sensor_id}: {self.name}")
+            self.log_info(f"{what} erfolgreich über {scheme.upper()}. Response: {response.status_code} | {response.text}")
             return True
-        except requests.RequestException as e:
-            self.log_failure('Zurücksetzen', e, response, action=True)
-            return False
-        
+        self.last_action_error = f"{what} fehlgeschlagen: {'; '.join(failures)}"
+        return False
+
+    def reset_sensor_values(self):
+        """
+        Reset sensor values
+        """
+        return self._control('Zurücksetzen', 'msubmenu=databasereset&action=control&IncludeDataType=PeopleCount')
+
     def reboot_sensor(self):
         """
         Reboot sensor
         """
-        self.last_action_error = None
-        url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=power&action=control&Type=Restart"
-        response = None
-        try:
-            response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
-            response.raise_for_status()
-            self.log_info(f"Sensor rebooted successfully. Response: {response.status_code} | {response.text}")
-            return True
-        except requests.RequestException as e:
-            self.log_failure('Neustart', e, response, action=True)
-            return False
+        return self._control('Neustart', 'msubmenu=power&action=control&Type=Restart')
 
     def check_credentials(self):
         """

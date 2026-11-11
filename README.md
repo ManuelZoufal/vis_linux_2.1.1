@@ -171,6 +171,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.16 | Hanwha-Kameras: Zurücksetzen und Neustart gehen über HTTP, wenn die Kamera auf HTTPS nicht antwortet; der funktionierende Weg wird gemerkt und im Ereignisprotokoll vermerkt |
 | 2.1.15 | Ereignisprotokoll (Ausfälle, Erholungen, Zeitpläne mit Grund je Sensor) und zeitlich begrenztes Detail-Protokoll unter „Logs“, je Datei auf `LOG_MAX_MB` (200 MB) begrenzt; kurze Fehlertexte statt ganzer Antwortseiten; Navigator fordert nach 5 Fehlversuchen nur noch alle `NAVIGATOR_RETRY_MINUTES` (15) Minuten ein Token an |
 | 2.1.14 | Aufräumen: ungenutzter Code entfernt (Tabellen `roles` und `schedules`, der Thread „Datenbankauszug“, ungenutzte Importe), Laufzeitdateien und `__pycache__` nicht mehr im Repository, Vorlage `env` heißt `.env.example`; die Seite „Logs“ verträgt ein fehlendes oder beschädigtes Änderungsprotokoll |
 | 2.1.13 | Eingaben bei Gruppen und beim Bearbeiten von Sensoren werden geprüft (Meldung statt Fehlerseite); maximale Belegung wird als Zahl gespeichert; Sensoren, Gruppen und IP-Adressen sortieren numerisch; beim Löschen einer Gruppe werden ihre Bilder entfernt; der Datenpunkt eines noch nie erreichten Sensors geht beim Bearbeiten nicht mehr verloren; Fehlertexte enthalten bei HTTP-Fehlern die Antwort des Sensors |

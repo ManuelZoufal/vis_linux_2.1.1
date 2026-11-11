@@ -436,6 +436,7 @@ EVENT_KIND_LABELS = {
     'navigator': 'Navigator',
     'detail': 'Detail-Protokoll',
     'start': 'Start',
+    'info': 'Hinweis',
 }
 DETAIL_MINUTES = (15, 60, 360, 1440)
 
