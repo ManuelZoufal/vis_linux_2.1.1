@@ -747,7 +747,11 @@ def export_logs():
     # Check if the user is an administrator
     if 'role' in session and session['role'] == 'Administrator':
         # Return the change_log.txt file as an attachment
-        return send_file('change_log.txt', as_attachment=True)
+        # send_file resolves relative paths against the application directory, the change log
+        # is written relative to the working directory: name the file explicitly
+        if not os.path.exists('change_log.txt'):
+            open('change_log.txt', 'a').close()
+        return send_file(os.path.abspath('change_log.txt'), as_attachment=True)
     return jsonify({'error': 'Unauthorized to export logs'}), 403
 
 # /api/sensors/<sensor_id>/reset
