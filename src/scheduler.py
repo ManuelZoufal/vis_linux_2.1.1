@@ -10,6 +10,7 @@ from src.sensor import sensors
 from src.navigator import upload_data_to_navigator, has_datapoint
 from src.config_store import load_config
 from src import thread_status
+from src import event_log
 
 SCHEDULER_THREAD_NAME = 'SchedulerThread'
 SCHEDULER_INTERVAL = 1  # Sekunden zwischen zwei Pruefungen auf faellige Zeitplaene
@@ -83,31 +84,54 @@ def execute_schedule(schedule):
     Args:
     schedule (dict): Schedule to execute
     """
-    failed = []
+    source = SCHEDULER_THREAD_NAME
+    title = f"Zeitplan {schedule.get('id')} ({schedule['action']})"
+    started = time.monotonic()
+    event_log.detail(source, f"{title} gestartet für Sensoren {', '.join(map(str, schedule['sensors']))}")
+    succeeded = []
+    failed = []  # (sensor name, reason)
     for sensor_id in schedule['sensors']:
         sensor = next((s for s in sensors if s.sensor_id == sensor_id), None)
         if not sensor:
             continue
+        reason = None
         try:
             if schedule['action'] == 'reset':
                 success = sensor.reset_sensor_values()
+                reason = sensor.last_action_error
             elif schedule['action'] == 'reboot':
                 success = sensor.reboot_sensor()
+                reason = sensor.last_action_error
             elif schedule['action'] == 'upload':
                 # A sensor without Navigator datapoint has nothing to upload
                 success = (not has_datapoint(sensor.datapoint_id)
                            or upload_data_to_navigator(sensor.datapoint_id, sensor.occupancy, sensor.name))
+                reason = "Upload zu Navigator fehlgeschlagen"
             else:
                 success = False
+                reason = "unbekannte Aktion"
         except Exception as e:
             logging.error(f"Schedule {schedule.get('id')}: {schedule['action']} failed for sensor {sensor.name}: {e}")
             success = False
-        if not success:
-            failed.append(sensor.name)
+            reason = f"{type(e).__name__}: {e}"
+        if success:
+            succeeded.append(sensor.name)
+        else:
+            failed.append((sensor.name, event_log.shorten(reason or "ohne Angabe eines Grundes", 160)))
+        event_log.detail(source, f"{title}: {sensor.name} -> {'OK' if success else 'FEHLER ' + str(reason)}")
+
+    total = len(succeeded) + len(failed)
+    duration = f"{time.monotonic() - started:.1f} s"
     if failed:
-        message = f"Zeitplan {schedule.get('id')} ({schedule['action']}): fehlgeschlagen für {', '.join(failed)}"
+        details = '; '.join(f"{name}: {reason}" for name, reason in failed)
+        message = f"{title}: {len(failed)} von {total} fehlgeschlagen – {details}"
         logging.error(message)
-        thread_status.report_error(message)
+        # The event log gets the complete list, the thread status a shortened text
+        event_log.event('schedule', source, f"{message} (Dauer {duration})", 'Scheduler (geplante Aktionen)')
+        thread_status.report_error(message, log_event=False)
+    else:
+        event_log.event('schedule', source, f"{title}: alle {total} Sensoren erfolgreich (Dauer {duration})", 'Scheduler (geplante Aktionen)')
+    event_log.detail(source, f"{title} beendet nach {duration}")
 
 
 def schedule_job(schedule):

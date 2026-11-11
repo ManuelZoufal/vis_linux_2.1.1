@@ -7,11 +7,17 @@ every cycle. The registry is read by /api/thread_status for the live view.
 import threading
 from datetime import datetime
 
+from src import event_log
+
 TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 # A thread counts as unresponsive if it has not reported for this long
 STALE_FACTOR = 3        # ... times its interval
 STALE_MIN_SECONDS = 30  # ... but at least this many seconds
+
+# While a thread keeps failing, the event log gets a reminder at most this often
+REMINDER_SECONDS = 3600
+MAX_ERROR_LENGTH = 300
 
 _lock = threading.Lock()
 _entries = {}  # name -> dict, in registration order
@@ -42,6 +48,9 @@ def register(name, label=None, interval=None):
             'detail': None,
             'run_count': 0,
             'error_count': 0,
+            'streak_count': 0,      # consecutive failures
+            'streak_started': None,
+            'streak_logged': None,  # time of the last event log entry of this streak
         }
 
 
@@ -59,6 +68,15 @@ def bind():
             entry['ended'] = False
 
 
+def _duration(seconds):
+    seconds = int(seconds)
+    if seconds < 120:
+        return f"{seconds} s"
+    if seconds < 7200:
+        return f"{seconds // 60} min"
+    return f"{seconds // 3600} h {seconds % 3600 // 60} min"
+
+
 def report_success(detail=None):
     """
     Report a successful cycle of the calling thread
@@ -66,34 +84,62 @@ def report_success(detail=None):
     Args:
     detail (str, optional): Additional information shown in the user interface
     """
+    recovered = None
     with _lock:
         entry = _current_entry()
         if entry:
             now = datetime.now()
+            if entry['streak_count'] and entry['streak_logged']:
+                recovered = (entry['name'], entry['label'],
+                             f"Wieder OK nach {entry['streak_count']} Fehlversuch(en), Ausfall seit "
+                             f"{_format(entry['streak_started'])} ({_duration((now - entry['streak_started']).total_seconds())})")
+            entry['streak_count'] = 0
+            entry['streak_started'] = None
+            entry['streak_logged'] = None
             entry['last_result'] = 'ok'
             entry['last_run'] = now
             entry['last_success'] = now
             entry['detail'] = detail
             entry['run_count'] += 1
+    if recovered:
+        event_log.event('recovered', recovered[0], recovered[2], recovered[1])
 
 
-def report_error(error):
+def report_error(error, log_event=True):
     """
     Report a failed cycle of the calling thread
 
+    The first failure of a series is written to the event log, further ones
+    only as a reminder once per REMINDER_SECONDS, the recovery again.
+
     Args:
     error (str): Description of the error
+    log_event (bool): False if the caller writes its own event log entry
     """
+    logged = None
     with _lock:
         entry = _current_entry()
         if entry:
             now = datetime.now()
+            message = event_log.shorten(error, MAX_ERROR_LENGTH)
             entry['last_result'] = 'error'
             entry['last_run'] = now
-            entry['last_error'] = str(error)
+            entry['last_error'] = message
             entry['last_error_time'] = now
             entry['run_count'] += 1
             entry['error_count'] += 1
+            if log_event:
+                entry['streak_count'] += 1
+                if entry['streak_started'] is None:
+                    entry['streak_started'] = now
+                    entry['streak_logged'] = now
+                    logged = ('error', entry['name'], entry['label'], message)
+                elif (now - entry['streak_logged']).total_seconds() >= REMINDER_SECONDS:
+                    entry['streak_logged'] = now
+                    logged = ('ongoing', entry['name'], entry['label'],
+                              f"Weiterhin Fehler: {entry['streak_count']} Fehlversuche seit {_format(entry['streak_started'])}. Zuletzt: {message}")
+    if logged:
+        event_log.event(logged[0], logged[1], logged[3], logged[2])
 
 
 def report_ended(error=None):
@@ -103,14 +149,19 @@ def report_ended(error=None):
     Args:
     error (str, optional): Description of the error that ended the thread
     """
+    ended = None
     with _lock:
         entry = _current_entry()
         if entry:
             entry['ended'] = True
             if error:
-                entry['last_error'] = str(error)
+                entry['last_error'] = event_log.shorten(error, MAX_ERROR_LENGTH)
                 entry['last_error_time'] = datetime.now()
                 entry['error_count'] += 1
+            ended = (entry['name'], entry['label'],
+                     f"Thread beendet: {event_log.shorten(error, MAX_ERROR_LENGTH)}" if error else "Thread beendet")
+    if ended:
+        event_log.event('ended', ended[0], ended[2], ended[1])
 
 
 def _format(moment):

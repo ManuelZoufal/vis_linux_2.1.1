@@ -3,7 +3,7 @@ import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from src.sensor_base import Sensor, REQUEST_TIMEOUT
+from src.sensor_base import Sensor, LoggingSession, REQUEST_TIMEOUT
 from src.database import save_sensor_values
 
 class IEE(Sensor):
@@ -21,7 +21,7 @@ class IEE(Sensor):
         """
         super().__init__(sensor_id, ip_address, name, "IEE", group_id, datapoint_id)
         self.password = password
-        self.session = requests.Session()
+        self.session = LoggingSession(f"SensorThread-{sensor_id}")
 
     def fetch_sensor_values(self):
         """
@@ -44,7 +44,7 @@ class IEE(Sensor):
             self.log_info(f"Sensor values fetched successfully for sensor {self.name}, Response: {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error fetching sensor values: {e}. Response: {response.text if response is not None else 'No response'}")
+            self.log_failure('Abfrage', e, response)
             return False
         
     def reset_sensor_values(self):
@@ -54,6 +54,7 @@ class IEE(Sensor):
         Returns:
         bool: True if values reset successfully, False otherwise
         """
+        self.last_action_error = None
         if self._authenticate():
             url = f"https://{self.ip_address}/webservice/reset_counters"
             response = None
@@ -63,7 +64,7 @@ class IEE(Sensor):
                 self.log_info(f"Sensor values reset successfully. Response: {response.text}")
                 return True
             except requests.RequestException as e:
-                self.log_error(f"Error resetting sensor values: {e}. Response: {response.text if response is not None else 'No response'}")
+                self.log_failure('Zurücksetzen', e, response, action=True)
                 return False
             finally:
                 self._logout()
@@ -76,6 +77,7 @@ class IEE(Sensor):
         bool: True if sensor rebooted successfully, False
         otherwise
         """
+        self.last_action_error = None
         if self._authenticate():
             url = f"https://{self.ip_address}/webservice/reboot"
             response = None
@@ -85,7 +87,7 @@ class IEE(Sensor):
                 self.log_info(f"Sensor rebooted successfully. Response: {response.text}")
                 return True
             except requests.RequestException as e:
-                self.log_error(f"Error rebooting sensor: {e}. Response: {response.text if response is not None else 'No response'}")
+                self.log_failure('Neustart', e, response, action=True)
                 return False
             finally:
                 self._logout()
@@ -106,7 +108,7 @@ class IEE(Sensor):
             self.log_info(f"Authenticated successfully. Response: {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error during authentication: {e}. Response: {response.text if response is not None else 'No response'}")
+            self.log_failure('Anmeldung', e, response, action=True)
             return False
         
     def _logout(self):
@@ -124,7 +126,7 @@ class IEE(Sensor):
             self.log_info(f"Logged out successfully. Response: {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error during logout: {e}. Response: {response.text if response is not None else 'No response'}")
+            self.log_failure('Abmeldung', e, response, remember=False)
             return False
 
     def check_credentials(self):

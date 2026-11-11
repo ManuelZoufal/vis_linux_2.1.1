@@ -7,6 +7,7 @@ from src.database import get_connection, save_sensor_values
 from src.config_store import load_config, save_config, with_config_lock
 from src import thread_status
 from src import certificate
+from src import event_log
 
 from flask import jsonify, session, request, send_file, current_app
 from datetime import datetime, timezone, timedelta
@@ -425,6 +426,212 @@ def export_thread_status():
     content = io.BytesIO('\r\n'.join(lines).encode('utf-8'))
     return send_file(content, as_attachment=True, mimetype='text/plain; charset=utf-8',
                      download_name=f"thread_status_{now.strftime('%Y%m%d_%H%M%S')}.txt")
+
+EVENT_KIND_LABELS = {
+    'error': 'Fehler',
+    'ongoing': 'Fehler dauert an',
+    'recovered': 'Wieder OK',
+    'ended': 'Thread beendet',
+    'schedule': 'Zeitplan',
+    'navigator': 'Navigator',
+    'detail': 'Detail-Protokoll',
+    'start': 'Start',
+}
+DETAIL_MINUTES = (15, 60, 360, 1440)
+
+
+def _is_admin():
+    return 'role' in session and session['role'] == 'Administrator'
+
+
+def _event_filter():
+    """Read the filter of the event log from the query string: (hours or None, source or None)"""
+    try:
+        hours = float(request.args.get('hours', 24))
+    except ValueError:
+        hours = 24
+    return (hours if hours > 0 else None), (request.args.get('source') or None)
+
+
+# /api/events
+@api_bp.route('/events')
+def get_events():
+    """
+    Get the event log
+    ---
+    get:
+      description: Failures, recoveries and executed schedules, newest first
+      parameters:
+        - name: hours
+          in: query
+          description: Only events of the last hours (0 for all), default 24
+        - name: source
+          in: query
+          description: Only events of this thread, e.g. SensorThread-5
+      responses:
+        200:
+          description: Events retrieved successfully
+        403:
+          description: Unauthorized to view the event log
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to view the event log'}), 403
+    hours, source = _event_filter()
+    events, truncated = event_log.read_events(hours, source)
+    for entry in events:
+        entry['kind_label'] = EVENT_KIND_LABELS.get(entry.get('kind'), entry.get('kind'))
+    sources = [{'name': t['name'], 'label': t['label']} for t in thread_status.snapshot()]
+    return jsonify({'events': events, 'truncated': truncated, 'sources': sources}), 200
+
+
+# /api/events/export
+@api_bp.route('/events/export')
+def export_events():
+    """
+    Export the event log
+    ---
+    get:
+      description: Returns the filtered event log as a text file download, oldest first
+      responses:
+        200:
+          description: Event log exported successfully
+        403:
+          description: Unauthorized to export the event log
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to export the event log'}), 403
+    hours, source = _event_filter()
+    events, truncated = event_log.read_events(hours, source, limit=100000)
+    now = datetime.now()
+    lines = [
+        'VIS Ereignisprotokoll',
+        f"Erstellt:  {now.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Version:   {current_app.config.get('APP_VERSION', 'unbekannt')}",
+        f"Zeitraum:  {'letzte ' + format(hours, 'g') + ' Stunden' if hours else 'alles'}",
+        f"Quelle:    {source or 'alle'}",
+        f"Einträge:  {len(events)}{' (gekürzt)' if truncated else ''}",
+        '',
+    ]
+    for entry in reversed(events):
+        kind = EVENT_KIND_LABELS.get(entry.get('kind'), entry.get('kind'))
+        lines.append(f"{entry.get('ts')} | {kind} | {entry.get('label')} | {entry.get('message')}")
+    content = io.BytesIO('\r\n'.join(lines).encode('utf-8'))
+    return send_file(content, as_attachment=True, mimetype='text/plain; charset=utf-8',
+                     download_name=f"ereignisse_{now.strftime('%Y%m%d_%H%M%S')}.txt")
+
+
+# /api/detail_log
+@api_bp.route('/detail_log')
+def get_detail_log():
+    """
+    Get the state of the detail log and the list of its files
+    ---
+    get:
+      responses:
+        200:
+          description: State retrieved successfully
+        403:
+          description: Unauthorized
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to view the detail log'}), 403
+    return jsonify(event_log.detail_status()), 200
+
+
+# /api/detail_log/start
+@api_bp.route('/detail_log/start', methods=['POST'])
+def start_detail_log():
+    """
+    Switch the detail log on for a limited time
+    ---
+    post:
+      description: Records every request to the sensors and to Navigator until the time is over or the size limit is reached
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                minutes:
+                  type: integer
+                  description: 15, 60, 360 or 1440
+                scope:
+                  type: string
+                  description: all, sensors, navigator, scheduler or sensor:<id>
+      responses:
+        200:
+          description: Detail log started
+        400:
+          description: Invalid duration or scope
+        403:
+          description: Unauthorized
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to start the detail log'}), 403
+    data = request.get_json(silent=True) or {}
+    minutes = data.get('minutes')
+    scope = str(data.get('scope', 'all'))
+    if minutes not in DETAIL_MINUTES:
+        return jsonify({'status': 'error', 'message': 'Ungültige Dauer'}), 400
+    sensor_ids = {s.sensor_id for s in sensors}
+    if scope not in ('all', 'sensors', 'navigator', 'scheduler') and not (scope.startswith('sensor:') and scope[7:] in sensor_ids):
+        return jsonify({'status': 'error', 'message': 'Ungültiger Umfang'}), 400
+    try:
+        name = event_log.start_detail(minutes, scope)
+    except OSError as e:
+        return jsonify({'status': 'error', 'message': f'Detail-Protokoll konnte nicht gestartet werden: {e}'}), 500
+    log_change(f"Detail log started for {minutes} minutes, scope {scope}, by user id {session.get('user_id')}")
+    return jsonify({'status': 'success', 'file': name}), 200
+
+
+# /api/detail_log/stop
+@api_bp.route('/detail_log/stop', methods=['POST'])
+def stop_detail_log():
+    """
+    Switch the detail log off
+    ---
+    post:
+      responses:
+        200:
+          description: Detail log stopped (or was not running)
+        403:
+          description: Unauthorized
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to stop the detail log'}), 403
+    return jsonify({'status': 'success', 'file': event_log.stop_detail()}), 200
+
+
+# /api/detail_log/files/<name>
+@api_bp.route('/detail_log/files/<name>', methods=['GET', 'DELETE'])
+def detail_log_file(name):
+    """
+    Download or delete a detail log file
+    ---
+    get:
+      responses:
+        200:
+          description: File download
+        404:
+          description: File not found
+    delete:
+      responses:
+        200:
+          description: File deleted
+        400:
+          description: The file is being written and cannot be deleted
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to access detail log files'}), 403
+    path = event_log.detail_file_path(name)
+    if not path:
+        return jsonify({'status': 'error', 'message': 'Datei nicht gefunden'}), 404
+    if request.method == 'DELETE':
+        if not event_log.delete_detail_file(name):
+            return jsonify({'status': 'error', 'message': 'Die Datei wird gerade geschrieben'}), 400
+        return jsonify({'status': 'success'}), 200
+    return send_file(os.path.abspath(path), as_attachment=True, mimetype='text/plain; charset=utf-8', download_name=name)
+
 
 # /api/export_logs
 @api_bp.route('/logs/export')

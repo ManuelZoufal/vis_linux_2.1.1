@@ -1,10 +1,10 @@
 import requests
 
 from requests.auth import HTTPDigestAuth
-from requests.exceptions import ConnectionError, SSLError, Timeout, RequestException
+from requests.exceptions import RequestException
 
 from src.database import save_sensor_values
-from src.sensor_base import Sensor, REQUEST_TIMEOUT
+from src.sensor_base import Sensor, LoggingSession, REQUEST_TIMEOUT
 
 class AI_HANWHA(Sensor):
     def __init__(self, sensor_id, ip_address, name, group_id, username, password, datapoint_id):
@@ -23,7 +23,7 @@ class AI_HANWHA(Sensor):
         super().__init__(sensor_id, ip_address, name, "AI_HANWHA", group_id, datapoint_id)
         self.password = password
         self.username = username
-        self.session = requests.Session()
+        self.session = LoggingSession(f"SensorThread-{sensor_id}")
 
     def fetch_sensor_values(self):
         """
@@ -35,7 +35,6 @@ class AI_HANWHA(Sensor):
         """
 
         protocols = ["http"]
-        last_exception = None
 
         for protocol in protocols:
             url = f"{protocol}://{self.ip_address}/stw-cgi/eventsources.cgi?msubmenu=peoplecount&action=check&Channel=0"
@@ -54,23 +53,17 @@ class AI_HANWHA(Sensor):
                 self.log_info(f"Sensor values fetched successfully for sensor {self.name} via {protocol.upper()}, Response: {response.text}")
                 return True
 
-            except (ConnectionError, SSLError, Timeout) as e:
-                last_exception = e
-                self.log_info(f"{protocol.upper()} request failed for sensor {self.name}. Trying fallback... Error: {e}")
-                continue
-
             except RequestException as e:
-                self.log_error(f"Request error fetching sensor values for {self.name} via {protocol.upper()}: {e}. Response: {getattr(e.response, 'text', 'No response')}")
-            return False
+                self.log_failure('Abfrage', e)
+                return False
 
-        # Falls beide Protokolle fehlschlagen
-        self.log_error(f"All attempts to fetch sensor values for {self.name} failed. Last error: {last_exception}")
         return False
-        
+
     def reset_sensor_values(self):
         """
         Reset sensor values"
         """
+        self.last_action_error = None
         url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=databasereset&action=control&IncludeDataType=PeopleCount"
         response = None
         try:
@@ -79,13 +72,14 @@ class AI_HANWHA(Sensor):
             self.log_info(f"Sensor values reset successfully. Response: {response.status_code} | {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error resetting sensor values: {e}. Response: {response.text if response is not None else 'No response'}")
+            self.log_failure('Zurücksetzen', e, response, action=True)
             return False
         
     def reboot_sensor(self):
         """
         Reboot sensor
         """
+        self.last_action_error = None
         url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=power&action=control&Type=Restart"
         response = None
         try:
@@ -94,7 +88,7 @@ class AI_HANWHA(Sensor):
             self.log_info(f"Sensor rebooted successfully. Response: {response.status_code} | {response.text}")
             return True
         except requests.RequestException as e:
-            self.log_error(f"Error rebooting sensor: {e}. Response: {response.text if response is not None else 'No response'}")
+            self.log_failure('Neustart', e, response, action=True)
             return False
 
     def check_credentials(self):

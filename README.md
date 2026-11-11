@@ -39,6 +39,8 @@ venv/bin/pip install -r requirements.txt
    | `SENSOR_IEE_PASSWORD` | Passwort für alle IEE-Sensoren |
    | `SENSOR_HANWHA_USERNAME`, `SENSOR_HANWHA_PASSWORD` | Zugangsdaten für alle Hanwha-Sensoren |
    | `SENSOR_<ID>_USERNAME`, `SENSOR_<ID>_PASSWORD` | Abweichende Zugangsdaten eines einzelnen Sensors, z. B. `SENSOR_7_PASSWORD`; haben Vorrang vor dem Standard des Typs |
+   | `LOG_DIR`, `LOG_MAX_MB`, `LOG_DETAIL_KEEP` | Verzeichnis für Ereignis- und Detail-Protokoll (Standard `logs`), Größengrenze je Datei in MB (Standard 200), Anzahl aufbewahrter Detail-Protokolle (Standard 5) |
+   | `NAVIGATOR_RETRY_MINUTES` | Abstand der Token-Anfragen, nachdem 5 in Folge fehlgeschlagen sind (Standard 15) |
    | `CERT_WARN_DAYS` | Ab so vielen Tagen vor Ablauf des Zertifikats sehen Administratoren einen Hinweis (Standard 30) |
    | `LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCK_MINUTES` | Login-Sperre: nach so vielen Fehlversuchen (Standard 5) für einen Benutzernamen von einer Adresse sind weitere Versuche so viele Minuten (Standard 15) gesperrt. Ein Neustart hebt alle Sperren auf |
    | `APP_TIMEZONE` | Zeitzone für angezeigte Zeitstempel (Standard `Europe/Berlin`) |
@@ -150,8 +152,17 @@ journalctl -u vis -f
 
 ## Überwachung
 
-Administratoren sehen unter „Logs“ den Abschnitt „Thread-Status“: je Hintergrund-Thread den
-Zustand, den letzten erfolgreichen Durchlauf und den letzten Fehler, alle 2 Sekunden aktualisiert.
+Administratoren finden unter „Logs“:
+
+- **Thread-Status:** je Hintergrund-Thread den Zustand, den letzten erfolgreichen Durchlauf und den letzten Fehler,
+  alle 2 Sekunden aktualisiert, mit Export.
+- **Ereignisprotokoll** (`logs/events.log`, immer aktiv): der erste Fehler einer Ausfallserie, stündlich eine Erinnerung,
+  solange sie andauert, die Erholung mit Dauer des Ausfalls sowie jeder ausgeführte Zeitplan mit dem Grund je
+  fehlgeschlagenem Sensor. Filter nach Zeitraum und Quelle, Export. Erreicht die Datei `LOG_MAX_MB`, wird sie zu
+  `events.log.1` und eine neue begonnen; es liegen also höchstens zwei Dateien vor.
+- **Detail-Protokoll** (`logs/detail_<Datum>_<Uhrzeit>.log`): für 15 Minuten bis 24 Stunden jede Anfrage an Sensoren
+  und Navigator mit Dauer, Status und gekürzter Antwort. Es endet nach Ablauf der Zeit, beim Erreichen von `LOG_MAX_MB`
+  oder bei einem Neustart. Passwörter, Token und Antworten auf Anmeldungen werden nicht geschrieben.
 
 ## Versionen
 
@@ -160,6 +171,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.15 | Ereignisprotokoll (Ausfälle, Erholungen, Zeitpläne mit Grund je Sensor) und zeitlich begrenztes Detail-Protokoll unter „Logs“, je Datei auf `LOG_MAX_MB` (200 MB) begrenzt; kurze Fehlertexte statt ganzer Antwortseiten; Navigator fordert nach 5 Fehlversuchen nur noch alle `NAVIGATOR_RETRY_MINUTES` (15) Minuten ein Token an |
 | 2.1.14 | Aufräumen: ungenutzter Code entfernt (Tabellen `roles` und `schedules`, der Thread „Datenbankauszug“, ungenutzte Importe), Laufzeitdateien und `__pycache__` nicht mehr im Repository, Vorlage `env` heißt `.env.example`; die Seite „Logs“ verträgt ein fehlendes oder beschädigtes Änderungsprotokoll |
 | 2.1.13 | Eingaben bei Gruppen und beim Bearbeiten von Sensoren werden geprüft (Meldung statt Fehlerseite); maximale Belegung wird als Zahl gespeichert; Sensoren, Gruppen und IP-Adressen sortieren numerisch; beim Löschen einer Gruppe werden ihre Bilder entfernt; der Datenpunkt eines noch nie erreichten Sensors geht beim Bearbeiten nicht mehr verloren; Fehlertexte enthalten bei HTTP-Fehlern die Antwort des Sensors |
 | 2.1.12 | Ablaufdatum des Zertifikats unter „Logs“, im Export und als Hinweis für Administratoren ab 30 Tagen vor Ablauf (`CERT_WARN_DAYS`); Zertifikat und Schlüssel sind nicht mehr Teil des Repositorys |
