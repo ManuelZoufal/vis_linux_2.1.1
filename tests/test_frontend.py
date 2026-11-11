@@ -64,3 +64,17 @@ def test_every_script_a_template_loads_exists():
 def test_marquee_text_can_be_changed_and_is_read_by_the_display(admin, anonymous):
     assert admin.post('/visualize/update_marquee', data={'marquee_text': 'Heute geschlossen'}).status_code == 200
     assert anonymous.get('/visualize/get_marquee_text').get_json() == {'marquee_text': 'Heute geschlossen'}
+
+
+def test_env_template_names_every_variable_the_code_reads():
+    """The template once listed variables nobody read and missed most of the ones that are read."""
+    read = set()
+    for path in [ROOT / 'app.py', *sorted((ROOT / 'src').glob('*.py')), *sorted((ROOT / 'routes').glob('*.py'))]:
+        read.update(re.findall(r"os\.environ(?:\.get)?[\[(]\s*['\"]([A-Z_]+)['\"]", path.read_text(encoding='utf-8')))
+    template = (ROOT / '.env.example').read_text(encoding='utf-8')
+    documented = set(re.findall(r'^#?\s*([A-Z][A-Z0-9_<>]*)=', template, flags=re.MULTILINE))
+    assert read - documented == set(), "read by the code but missing in .env.example"
+    sensor_keys = {name for name in documented if name.startswith('SENSOR_')}
+    assert sensor_keys == {'SENSOR_IEE_PASSWORD', 'SENSOR_HANWHA_USERNAME', 'SENSOR_HANWHA_PASSWORD',
+                           'SENSOR_<ID>_USERNAME', 'SENSOR_<ID>_PASSWORD'}
+    assert documented - read - sensor_keys == set(), "in .env.example but not read by the code"
