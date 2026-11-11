@@ -1,10 +1,14 @@
+import socket
+import ssl
+
 import requests
 
 from requests.auth import HTTPDigestAuth
 from requests.exceptions import RequestException
 
 from src.database import save_sensor_values
-from src.sensor_base import Sensor, LoggingSession, REQUEST_TIMEOUT
+from src.sensor_base import Sensor, LoggingSession, REQUEST_TIMEOUT, short_reason
+from src import event_log
 
 class AI_HANWHA(Sensor):
     def __init__(self, sensor_id, ip_address, name, group_id, username, password, datapoint_id):
@@ -24,6 +28,7 @@ class AI_HANWHA(Sensor):
         self.password = password
         self.username = username
         self.session = LoggingSession(f"SensorThread-{sensor_id}")
+        self._control_scheme = 'https'  # scheme that last worked for reset and reboot
 
     def fetch_sensor_values(self):
         """
@@ -50,7 +55,7 @@ class AI_HANWHA(Sensor):
                 self.backward_value = backward_value_line1 + backward_value_line2
                 self.occupancy = self.forward_value - self.backward_value
                 save_sensor_values(self)
-                self.log_info(f"Sensor values fetched successfully for sensor {self.name} via {protocol.upper()}, Response: {response.text}")
+                self.log_debug(f"Sensor values fetched successfully via {protocol.upper()}, Response: {event_log.shorten(response.text, 200)}")
                 return True
 
             except RequestException as e:
@@ -59,37 +64,93 @@ class AI_HANWHA(Sensor):
 
         return False
 
-    def reset_sensor_values(self):
+    def _https_problem(self):
         """
-        Reset sensor values"
+        Check whether the camera completes a TLS handshake on its HTTPS port,
+        before a control command is sent
+
+        A camera that accepts the connection on port 443 but never finishes the
+        handshake makes requests report a timeout of the answer. That cannot be
+        told apart from a command that was sent and not answered, so the
+        handshake is tested separately: nothing has been sent at that point.
+
+        Returns:
+        str: Short reason why HTTPS cannot be used, None if the handshake works
+        """
+        host, _, port = str(self.ip_address).partition(':')
+        try:
+            context = ssl._create_unverified_context()  # same as verify=False for the requests
+            with socket.create_connection((host, int(port or 443)), timeout=REQUEST_TIMEOUT[0]) as sock:
+                with context.wrap_socket(sock, server_hostname=host):
+                    return None
+        except socket.timeout:
+            return "keine TLS-Verbindung (Zeitüberschreitung)"
+        except (OSError, ValueError) as e:
+            return event_log.shorten(f"keine TLS-Verbindung ({type(e).__name__}: {e})", 160)
+
+    def _control(self, what, query):
+        """
+        Send a control command (reset, reboot) to the camera
+
+        HTTPS is used if the camera completes a TLS handshake, otherwise the
+        command is sent over HTTP, which is also what the counter values are
+        read with. The scheme that worked is tried first the next time.
+        Once a command has been sent, it is never repeated over the other
+        scheme: neither when the camera answered with an error nor when the
+        answer timed out, because the camera may already have executed it.
+
+        Args:
+        what (str): "Zurücksetzen" or "Neustart", for the messages
+        query (str): Query string of system.cgi
+
+        Returns:
+        bool: True if the camera accepted the command
         """
         self.last_action_error = None
-        url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=databasereset&action=control&IncludeDataType=PeopleCount"
-        response = None
-        try:
-            response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
-            response.raise_for_status()
-            self.log_info(f"Sensor values reset successfully. Response: {response.status_code} | {response.text}")
+        schemes = [self._control_scheme] + [s for s in ('https', 'http') if s != self._control_scheme]
+        failures = []
+        for scheme in schemes:
+            if scheme == 'https':
+                problem = self._https_problem()
+                if problem:
+                    failures.append(f"HTTPS: {problem}")
+                    self.log_info(f"{what} über HTTPS nicht möglich: {problem}")
+                    event_log.detail(f"SensorThread-{self.sensor_id}", f"TLS-Prüfung https://{self.ip_address}/ | FEHLER {problem}")
+                    continue
+            url = f"{scheme}://{self.ip_address}/stw-cgi/system.cgi?{query}"
+            response = None
+            try:
+                response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
+                response.raise_for_status()
+            except requests.exceptions.ConnectionError as e:
+                # No connection on this scheme: note it and try the other one
+                failures.append(f"{scheme.upper()}: {short_reason(e, response)}")
+                self.log_failure(f"{what} über {scheme.upper()}", e, response, remember=False)
+                continue
+            except requests.RequestException as e:
+                self.log_failure(what, e, response, action=True)
+                return False
+            if scheme != self._control_scheme:
+                self._control_scheme = scheme
+                event_log.event('info', f"SensorThread-{self.sensor_id}",
+                                f"Steuerbefehle gehen ab jetzt über {scheme.upper()}, weil {failures[0] if failures else 'der andere Weg nicht antwortete'}",
+                                f"Sensor {self.sensor_id}: {self.name}")
+            self.log_info(f"{what} erfolgreich über {scheme.upper()}. Response: {response.status_code} | {event_log.shorten(response.text, 200)}")
             return True
-        except requests.RequestException as e:
-            self.log_failure('Zurücksetzen', e, response, action=True)
-            return False
-        
+        self.last_action_error = f"{what} fehlgeschlagen: {'; '.join(failures)}"
+        return False
+
+    def reset_sensor_values(self):
+        """
+        Reset sensor values
+        """
+        return self._control('Zurücksetzen', 'msubmenu=databasereset&action=control&IncludeDataType=PeopleCount')
+
     def reboot_sensor(self):
         """
         Reboot sensor
         """
-        self.last_action_error = None
-        url = f"https://{self.ip_address}/stw-cgi/system.cgi?msubmenu=power&action=control&Type=Restart"
-        response = None
-        try:
-            response = self.session.post(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
-            response.raise_for_status()
-            self.log_info(f"Sensor rebooted successfully. Response: {response.status_code} | {response.text}")
-            return True
-        except requests.RequestException as e:
-            self.log_failure('Neustart', e, response, action=True)
-            return False
+        return self._control('Neustart', 'msubmenu=power&action=control&Type=Restart')
 
     def check_credentials(self):
         """

@@ -89,10 +89,16 @@ def execute_schedule(schedule):
     started = time.monotonic()
     event_log.detail(source, f"{title} gestartet für Sensoren {', '.join(map(str, schedule['sensors']))}")
     succeeded = []
+    skipped = []
     failed = []  # (sensor name, reason)
     for sensor_id in schedule['sensors']:
         sensor = next((s for s in sensors if s.sensor_id == sensor_id), None)
         if not sensor:
+            continue
+        if not sensor.counting and schedule['action'] in ('reset', 'upload'):
+            # Nothing to reset or upload for a device without counting; a reboot stays possible
+            skipped.append(sensor.name)
+            event_log.detail(source, f"{title}: {sensor.name} -> übersprungen (keine Zählung)")
             continue
         reason = None
         try:
@@ -122,6 +128,8 @@ def execute_schedule(schedule):
 
     total = len(succeeded) + len(failed)
     duration = f"{time.monotonic() - started:.1f} s"
+    if skipped:
+        duration += f", {len(skipped)} ohne Zählung übersprungen"
     if failed:
         details = '; '.join(f"{name}: {reason}" for name, reason in failed)
         message = f"{title}: {len(failed)} von {total} fehlgeschlagen – {details}"

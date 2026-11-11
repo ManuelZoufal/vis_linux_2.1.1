@@ -15,7 +15,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Version of this code. Raised with every update, see "Versionen" in README.md.
 # Deliberately not read from .env, so the displayed version always matches the installed files.
-APP_VERSION = "2.1.15"
+APP_VERSION = "2.1.19"
 APP_DEBUG = os.environ.get("APP_DEBUG", "false").strip().lower() in ("1", "true", "yes")
 APP_PORT = int(os.environ.get("APP_PORT", 5000))
 SESSION_LIFETIME_HOURS = int(os.environ.get("SESSION_LIFETIME_HOURS", 24))
@@ -25,7 +25,14 @@ logging.basicConfig(
     level=logging.DEBUG if APP_DEBUG else logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
+if not APP_DEBUG:
+    # The web server writes one line per request; with pages that refresh every second
+    # that is tens of thousands of lines per day and browser. Warnings and errors stay.
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logging.info(f"[VIS-START] Version {APP_VERSION} | NO_PROXY = {os.environ.get('NO_PROXY')}")
+
+from src import server_log
+server_log.init(APP_DEBUG)  # remembers these levels; the verbose log can be switched on for a limited time
 
 # Without these values the app would run with publicly known defaults
 missing = [name for name in ("APP_SECRET_KEY", "DEFAULT_ADMIN_PASSWORD") if not os.environ.get(name)]
@@ -130,6 +137,8 @@ if __name__ == "__main__":
 
     # The scheduler registers and starts its own thread
     start_scheduler('config.json')
+
+    logging.info(f"[VIS-START] Webserver startet auf Port {APP_PORT} (HTTPS), Debug-Modus {'an' if APP_DEBUG else 'aus'}")
 
     # use_reloader stays off: the reloader runs this block in two processes (all threads twice)
     app.run(

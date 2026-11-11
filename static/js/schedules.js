@@ -58,7 +58,8 @@ async function fetchSensorData() {
     sensors.forEach(sensor => {
         const option = document.createElement('option');
         option.value = sensor.sensor_id;
-        option.text = sensor.name;
+        // Devices without counting can be rebooted, but are skipped by reset and upload
+        option.text = sensor.counting === false ? `${sensor.name} (keine Zählung)` : sensor.name;
         sensorSelect.appendChild(option);
     });
 }

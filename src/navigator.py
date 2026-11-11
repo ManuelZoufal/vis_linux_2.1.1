@@ -221,7 +221,7 @@ def upload_data_to_navigator(datapoint_id, occupancy, name):
             break
 
         if response.status_code == 201:
-            logging.info(f"Data uploaded to Navigator for sensor {name}")
+            logging.debug(f"Data uploaded to Navigator for sensor {name}")  # one per sensor and minute
             return True
         else:
             logging.error(f"Failed to upload data to Navigator for sensor {name}. Status: {response.status_code}, Response: {event_log.shorten(response.text, 300)}")

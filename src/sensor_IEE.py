@@ -4,6 +4,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from src.sensor_base import Sensor, LoggingSession, REQUEST_TIMEOUT
+from src import event_log
 from src.database import save_sensor_values
 
 class IEE(Sensor):
@@ -41,7 +42,7 @@ class IEE(Sensor):
             self.backward_value = data["counters"]["total_backward_dir"]
             self.occupancy = self.forward_value - self.backward_value
             save_sensor_values(self)
-            self.log_info(f"Sensor values fetched successfully for sensor {self.name}, Response: {response.text}")
+            self.log_debug(f"Sensor values fetched successfully, Response: {event_log.shorten(response.text, 200)}")
             return True
         except requests.RequestException as e:
             self.log_failure('Abfrage', e, response)
@@ -61,7 +62,7 @@ class IEE(Sensor):
             try:
                 response = self.session.post(url, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
                 response.raise_for_status()
-                self.log_info(f"Sensor values reset successfully. Response: {response.text}")
+                self.log_info(f"Sensor values reset successfully. Response: {event_log.shorten(response.text, 200)}")
                 return True
             except requests.RequestException as e:
                 self.log_failure('Zurücksetzen', e, response, action=True)
@@ -84,7 +85,7 @@ class IEE(Sensor):
             try:
                 response = self.session.post(url, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
                 response.raise_for_status()
-                self.log_info(f"Sensor rebooted successfully. Response: {response.text}")
+                self.log_info(f"Sensor rebooted successfully. Response: {event_log.shorten(response.text, 200)}")
                 return True
             except requests.RequestException as e:
                 self.log_failure('Neustart', e, response, action=True)
@@ -105,7 +106,7 @@ class IEE(Sensor):
         try:
             response = self.session.post(url, json={'password': self.password}, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
             response.raise_for_status()
-            self.log_info(f"Authenticated successfully. Response: {response.text}")
+            self.log_debug("Authenticated successfully")  # the answer may contain a session token and is not logged
             return True
         except requests.RequestException as e:
             self.log_failure('Anmeldung', e, response, action=True)
@@ -123,7 +124,7 @@ class IEE(Sensor):
         try:
             response = self.session.post(url, verify=False, timeout=REQUEST_TIMEOUT, proxies={})
             response.raise_for_status()
-            self.log_info(f"Logged out successfully. Response: {response.text}")
+            self.log_debug("Logged out successfully")
             return True
         except requests.RequestException as e:
             self.log_failure('Abmeldung', e, response, remember=False)

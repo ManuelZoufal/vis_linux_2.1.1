@@ -96,6 +96,7 @@ class Sensor:
         self.forward_value = 0
         self.backward_value = 0
         self.occupancy = 0
+        self.counting = True            # False: the device is not used for counting (e.g. heat map camera)
         self.last_error = None          # short reason of the last failed query
         self.last_action_error = None   # short reason of the last failed reset, reboot or login
 
@@ -107,6 +108,16 @@ class Sensor:
         message (str): Message to log
         """
         logging.info(f"{self.name}: {message}")
+
+    def log_debug(self, message):
+        """
+        Log a routine message that is only of interest while debugging,
+        e.g. every successful query (one per sensor every few seconds)
+
+        Args:
+        message (str): Message to log
+        """
+        logging.debug(f"{self.name}: {message}")
 
     def log_error(self, message):
         """

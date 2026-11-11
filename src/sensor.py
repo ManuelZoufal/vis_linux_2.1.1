@@ -5,6 +5,7 @@ from src.sensor_IEE import IEE
 from src.sensor_AIHANWHA import AI_HANWHA
 from src.config_store import load_config
 from src import thread_status
+from src.database import delete_sensor_values
 from src import sensor_credentials
 
 def load_sensors_from_config(config_path):
@@ -34,6 +35,7 @@ def load_sensors_from_config(config_path):
         else:
             logging.error(f"Sensor {sensor_config.get('sensor_id')} skipped: unknown type {sensor_config['type']}")
             continue
+        sensor.counting = sensor_config.get('counting', True) is not False
         sensors.append(sensor)
     return sensors
 
@@ -48,7 +50,21 @@ def sensor_thread(sensor, interval):
     Returns:
     None
     """
+    was_counting = True
     while True:
+        if not sensor.counting:
+            # Not a counting device: no query. The thread keeps running, so the
+            # switch in the user interface takes effect without a restart
+            if was_counting:
+                # A query that was still running when the switch was turned off may have
+                # written values after they were removed: remove them again
+                sensor.forward_value = sensor.backward_value = sensor.occupancy = 0
+                delete_sensor_values(sensor.sensor_id)
+                was_counting = False
+            thread_status.report_idle("Keine Zählung")
+            time.sleep(interval)
+            continue
+        was_counting = True
         try:
             if sensor.fetch_sensor_values():
                 thread_status.report_success()

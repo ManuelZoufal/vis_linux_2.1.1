@@ -86,6 +86,18 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def delete_sensor_values(sensor_id):
+    """
+    Remove the values of a sensor from the sensor_data table, so it no longer
+    counts towards the occupancy of its group and is not uploaded to Navigator
+
+    param sensor_id: ID of the sensor
+    """
+    conn = get_connection()
+    conn.execute('DELETE FROM sensor_data WHERE sensor_id = ?', (sensor_id,))
+    conn.commit()
+    conn.close()
+
 def save_sensor_values(sensor):
     """
     Save sensor values to sensor_data table

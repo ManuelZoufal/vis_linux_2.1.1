@@ -35,8 +35,9 @@ async function fetchSensorData() {
     sensorList.replaceChildren();
     data.sensors.sort((a, b) => String(a.ip_address).localeCompare(String(b.ip_address), undefined, { numeric: true })).forEach(sensor => {
         const tr = document.createElement('tr');
-        appendCells(tr, [sensor.name, sensor.ip_address || 'N/A', sensor.occupancy || 0, sensor.group_id,
-            sensor.type, sensor.datapoint_id]);
+        const counting = sensor.counting !== false;
+        appendCells(tr, [sensor.name, sensor.ip_address || 'N/A', counting ? (sensor.occupancy || 0) : '–',
+            counting ? 'aktiv' : 'keine Zählung', sensor.group_id, sensor.type, sensor.datapoint_id]);
 
         const actions = document.createElement('td');
         if (sensor.type === 'VIRTUAL') {
@@ -45,11 +46,12 @@ async function fetchSensorData() {
         actions.append(createButton('Bearbeiten', 'button-secondary', () => openSensorModal(sensor.sensor_id)));
         if (sensor.type !== 'VIRTUAL') {
             // A virtual sensor has no device that could be opened, reset or rebooted
-            actions.append(' ',
-                createButton('Webinterface', 'button-secondary', () => openWebInterface(sensor.ip_address)), ' ',
-                createButton('Zählwerte zurücksetzen', 'button-warning', () => resetSensor(sensor.sensor_id)), ' ',
-                createButton('Neustarten', 'button-warning', () => rebootSensor(sensor.sensor_id))
-            );
+            actions.append(' ', createButton('Webinterface', 'button-secondary', () => openWebInterface(sensor.ip_address)), ' ');
+            if (counting) {
+                // Nothing to reset on a device that is not used for counting; a reboot stays possible
+                actions.append(createButton('Zählwerte zurücksetzen', 'button-warning', () => resetSensor(sensor.sensor_id)), ' ');
+            }
+            actions.append(createButton('Neustarten', 'button-warning', () => rebootSensor(sensor.sensor_id)));
         }
         tr.appendChild(actions);
         sensorList.appendChild(tr);
@@ -70,7 +72,21 @@ function openSensorModal(sensorId) {
         formGroup.className = 'form-group';
         const label = document.createElement('label');
         label.innerText = key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' ');
-        if (key === 'group_id') {
+        if (key === 'counting') {
+            if (sensor.type === 'VIRTUAL') {
+                continue; // A virtual sensor has no device that could be queried
+            }
+            // Switch for devices that are not used for counting, e.g. heat map cameras
+            label.innerText = 'Zählung aktiv';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = 'sensorCounting';
+            checkbox.checked = value !== false;
+            checkbox.style.width = 'auto';
+            const hint = document.createElement('small');
+            hint.textContent = ' Ohne Zählung wird der Sensor nicht abgefragt, nicht zurückgesetzt und nicht an Navigator übertragen. Ein Neustart bleibt möglich.';
+            formGroup.append(label, checkbox, hint);
+        } else if (key === 'group_id') {
             const select = document.createElement('select');
             select.name = key;
             groups.forEach(group => {
@@ -130,6 +146,10 @@ async function saveSensorSettings() {
     formData.forEach((value, key) => {
         data[key] = value;
     });
+    const countingBox = document.getElementById('sensorCounting');
+    if (countingBox) {
+        data.counting = countingBox.checked;
+    }
     const sensor = sensors.find(s => s.sensor_id === currentSensorId);
     const url = sensor && sensor.type === 'VIRTUAL'
         ? `/api/sensors/virtual/${currentSensorId}/edit`
@@ -182,7 +202,11 @@ async function resetSensor(sensorId) {
             alert('Zählwerte erfolgreich zurückgesetzt');
             fetchSensorData();
         } else {
-            alert('Fehler beim Zurücksetzen der Zählwerte');
+            {
+            let message = `HTTP ${response.status}`;
+            try { message = (await response.json()).message || message; } catch (_) {}
+            alert('Fehler beim Zurücksetzen der Zählwerte: ' + message);
+        }
         }
     }
 }
@@ -194,7 +218,11 @@ async function rebootSensor(sensorId) {
             alert('Sensor erfolgreich neugestartet');
             fetchSensorData();
         } else {
-            alert('Fehler beim Neustarten des Sensors');
+            {
+            let message = `HTTP ${response.status}`;
+            try { message = (await response.json()).message || message; } catch (_) {}
+            alert('Fehler beim Neustarten des Sensors: ' + message);
+        }
         }
     }
 }
