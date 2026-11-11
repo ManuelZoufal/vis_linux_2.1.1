@@ -3,7 +3,6 @@ from . import group_bp
 from src.database import get_connection
 from src.config_store import load_config
 
-import json
 from flask import jsonify
 
 # /groups

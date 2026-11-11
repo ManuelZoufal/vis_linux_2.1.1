@@ -221,6 +221,10 @@ __marimo__/
 
 # VIS runtime data
 sensor_data.db
+logs/
+change_log.txt
+static/uploads/*
+!static/uploads/.gitkeep
 
 # TLS certificate and private key of the web server (never commit)
 Webserver_IP.crt

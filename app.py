@@ -15,7 +15,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Version of this code. Raised with every update, see "Versionen" in README.md.
 # Deliberately not read from .env, so the displayed version always matches the installed files.
-APP_VERSION = "2.1.12"
+APP_VERSION = "2.1.15"
 APP_DEBUG = os.environ.get("APP_DEBUG", "false").strip().lower() in ("1", "true", "yes")
 APP_PORT = int(os.environ.get("APP_PORT", 5000))
 SESSION_LIFETIME_HOURS = int(os.environ.get("SESSION_LIFETIME_HOURS", 24))
@@ -37,13 +37,14 @@ if APP_DEBUG:
 
 from routes import root_bp, admin_bp, group_bp, visualize_bp, api_bp  # Import the blueprints
 
-from src.database import init_db, db_output_thread  # Import database functions
+from src.database import init_db  # Import database functions
 from src.sensor import sensors, sensor_thread  # The same sensor list the API and the scheduler use
 from src.scheduler import start_scheduler  # Import scheduler functions
 from src.navigator import navigator_thread  # Import navigator functions
 from src import thread_status
-from src.helpers import refresh_session_user
+from src.helpers import refresh_session_user, UPLOAD_FOLDER
 from src import certificate
+from src import event_log
 
 app = Flask(__name__)
 app.secret_key = os.environ["APP_SECRET_KEY"]
@@ -103,7 +104,6 @@ def start_monitored_thread(name, label, interval, target, *args):
 # Main-Program
 if __name__ == "__main__":
     SENSOR_INTERVAL = 7  # Intervall in Sekunden für Sensorabfragen
-    DB_OUTPUT_INTERVAL = 30  # Intervall in Sekunden für Datenbankauszug
     NAVIGATOR_INTERVAL = 60  # Intervall in Sekunden für Upload zu Navigator
 
     # Certificate and key are not part of the repository, see "Zertifikat" in README.md
@@ -113,12 +113,19 @@ if __name__ == "__main__":
     cert_status = certificate.load()
     logging.log(logging.INFO if cert_status['state'] == 'ok' else logging.WARNING, f"[VIS-START] {cert_status['message']}")
 
+    # Runtime files that are not part of the repository
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    open('change_log.txt', 'a').close()
+
+    # Event log and detail log live in logs/; without write access the app runs without them
+    event_log.init()
+    event_log.event('start', 'App', f"Anwendung gestartet, Version {APP_VERSION}", 'Anwendung')
+
     init_db()
 
     for sensor in sensors:
         start_monitored_thread(f"SensorThread-{sensor.sensor_id}", f"Sensor {sensor.sensor_id}: {sensor.name}", SENSOR_INTERVAL, sensor_thread, sensor, SENSOR_INTERVAL)
 
-    start_monitored_thread("DBOutputThread", "Datenbankauszug", DB_OUTPUT_INTERVAL, db_output_thread, DB_OUTPUT_INTERVAL)
     start_monitored_thread("NavigatorUploadThread", "Navigator-Upload", NAVIGATOR_INTERVAL, navigator_thread, NAVIGATOR_INTERVAL)
 
     # The scheduler registers and starts its own thread

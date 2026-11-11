@@ -7,14 +7,12 @@ from src.database import get_connection, save_sensor_values
 from src.config_store import load_config, save_config, with_config_lock
 from src import thread_status
 from src import certificate
+from src import event_log
 
 from flask import jsonify, session, request, send_file, current_app
-from werkzeug.utils import secure_filename
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import logging
-import json
-import sqlite3
 import socket
 import io
 import os
@@ -35,6 +33,46 @@ def _display_timezone():
 
 
 DISPLAY_TIMEZONE = _display_timezone()
+
+
+def _group_values(data, current=None):
+    """
+    Read and check the settings of a group from request data
+
+    Args:
+    data (dict): Request data
+    current (dict, optional): Existing group, its values are kept for fields missing in data
+
+    Returns:
+    tuple: (values, None) or (None, description of the problem)
+    """
+    current = current or {}
+    name = str(data.get('name', current.get('name', '')) or '').strip()
+    if not name:
+        return None, 'Der Name darf nicht leer sein'
+    try:
+        max_occupancy = int(data.get('max_occupancy', current.get('max_occupancy')))
+    except (TypeError, ValueError):
+        return None, 'Die maximale Belegung muss eine ganze Zahl sein'
+    if max_occupancy < 0:
+        return None, 'Die maximale Belegung darf nicht negativ sein'
+    maintenance_mode = data.get('maintenance_mode', current.get('maintenance_mode', False))
+    if not isinstance(maintenance_mode, bool):
+        return None, 'Der Wartungsmodus muss true oder false sein'
+    welcome_text = str(data.get('welcome_text', current.get('welcome_text', '')) or '')
+    return {'name': name, 'max_occupancy': max_occupancy, 'welcome_text': welcome_text,
+            'maintenance_mode': maintenance_mode}, None
+
+
+def _remove_display_images(group):
+    """Delete the display image files of a group from the upload folder"""
+    upload_folder = _upload_folder()
+    for filename in group.get('display_images') or []:
+        if not filename:
+            continue
+        path = os.path.join(upload_folder, os.path.basename(filename))  # never leave the upload folder
+        if os.path.isfile(path):
+            os.remove(path)
 
 
 def _virtual_sensor_values(data, current=None):
@@ -192,7 +230,7 @@ def get_data():
         'occupancy': next((row[2] for row in db_data if row[0] == sensor['sensor_id']), sensor.get('occupancy', 0)),
         'forward_value': next((row[3] for row in db_data if row[0] == sensor['sensor_id']), 0),
         'backward_value': next((row[4] for row in db_data if row[0] == sensor['sensor_id']), 0),
-        'datapoint_id': next((row[5] for row in db_data if row[0] == sensor['sensor_id']), "N/A"),
+        'datapoint_id': sensor.get('datapoint_id') or 'N/A',
         'timestamp': next((row[6] for row in db_data if row[0] == sensor['sensor_id']), 'N/A'),
         'type': sensor['type']
     } for sensor in config['sensors']]
@@ -253,8 +291,12 @@ def get_logs():
     logs = []
     try:
         # Read log messages from the change_log.txt file
+        if not os.path.exists('change_log.txt'):
+            return jsonify({'logs': []}), 200
         with open('change_log.txt', 'r') as file:
             for line in file:
+                if ' - ' not in line:
+                    continue  # skip empty or damaged lines instead of failing the whole request
                 timestamp, message = line.strip().split(' - ', 1)
                 logs.append({'timestamp': timestamp, 'message': message})
         return jsonify({'logs': logs}), 200
@@ -384,6 +426,212 @@ def export_thread_status():
     content = io.BytesIO('\r\n'.join(lines).encode('utf-8'))
     return send_file(content, as_attachment=True, mimetype='text/plain; charset=utf-8',
                      download_name=f"thread_status_{now.strftime('%Y%m%d_%H%M%S')}.txt")
+
+EVENT_KIND_LABELS = {
+    'error': 'Fehler',
+    'ongoing': 'Fehler dauert an',
+    'recovered': 'Wieder OK',
+    'ended': 'Thread beendet',
+    'schedule': 'Zeitplan',
+    'navigator': 'Navigator',
+    'detail': 'Detail-Protokoll',
+    'start': 'Start',
+}
+DETAIL_MINUTES = (15, 60, 360, 1440)
+
+
+def _is_admin():
+    return 'role' in session and session['role'] == 'Administrator'
+
+
+def _event_filter():
+    """Read the filter of the event log from the query string: (hours or None, source or None)"""
+    try:
+        hours = float(request.args.get('hours', 24))
+    except ValueError:
+        hours = 24
+    return (hours if hours > 0 else None), (request.args.get('source') or None)
+
+
+# /api/events
+@api_bp.route('/events')
+def get_events():
+    """
+    Get the event log
+    ---
+    get:
+      description: Failures, recoveries and executed schedules, newest first
+      parameters:
+        - name: hours
+          in: query
+          description: Only events of the last hours (0 for all), default 24
+        - name: source
+          in: query
+          description: Only events of this thread, e.g. SensorThread-5
+      responses:
+        200:
+          description: Events retrieved successfully
+        403:
+          description: Unauthorized to view the event log
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to view the event log'}), 403
+    hours, source = _event_filter()
+    events, truncated = event_log.read_events(hours, source)
+    for entry in events:
+        entry['kind_label'] = EVENT_KIND_LABELS.get(entry.get('kind'), entry.get('kind'))
+    sources = [{'name': t['name'], 'label': t['label']} for t in thread_status.snapshot()]
+    return jsonify({'events': events, 'truncated': truncated, 'sources': sources}), 200
+
+
+# /api/events/export
+@api_bp.route('/events/export')
+def export_events():
+    """
+    Export the event log
+    ---
+    get:
+      description: Returns the filtered event log as a text file download, oldest first
+      responses:
+        200:
+          description: Event log exported successfully
+        403:
+          description: Unauthorized to export the event log
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to export the event log'}), 403
+    hours, source = _event_filter()
+    events, truncated = event_log.read_events(hours, source, limit=100000)
+    now = datetime.now()
+    lines = [
+        'VIS Ereignisprotokoll',
+        f"Erstellt:  {now.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Version:   {current_app.config.get('APP_VERSION', 'unbekannt')}",
+        f"Zeitraum:  {'letzte ' + format(hours, 'g') + ' Stunden' if hours else 'alles'}",
+        f"Quelle:    {source or 'alle'}",
+        f"Einträge:  {len(events)}{' (gekürzt)' if truncated else ''}",
+        '',
+    ]
+    for entry in reversed(events):
+        kind = EVENT_KIND_LABELS.get(entry.get('kind'), entry.get('kind'))
+        lines.append(f"{entry.get('ts')} | {kind} | {entry.get('label')} | {entry.get('message')}")
+    content = io.BytesIO('\r\n'.join(lines).encode('utf-8'))
+    return send_file(content, as_attachment=True, mimetype='text/plain; charset=utf-8',
+                     download_name=f"ereignisse_{now.strftime('%Y%m%d_%H%M%S')}.txt")
+
+
+# /api/detail_log
+@api_bp.route('/detail_log')
+def get_detail_log():
+    """
+    Get the state of the detail log and the list of its files
+    ---
+    get:
+      responses:
+        200:
+          description: State retrieved successfully
+        403:
+          description: Unauthorized
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to view the detail log'}), 403
+    return jsonify(event_log.detail_status()), 200
+
+
+# /api/detail_log/start
+@api_bp.route('/detail_log/start', methods=['POST'])
+def start_detail_log():
+    """
+    Switch the detail log on for a limited time
+    ---
+    post:
+      description: Records every request to the sensors and to Navigator until the time is over or the size limit is reached
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                minutes:
+                  type: integer
+                  description: 15, 60, 360 or 1440
+                scope:
+                  type: string
+                  description: all, sensors, navigator, scheduler or sensor:<id>
+      responses:
+        200:
+          description: Detail log started
+        400:
+          description: Invalid duration or scope
+        403:
+          description: Unauthorized
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to start the detail log'}), 403
+    data = request.get_json(silent=True) or {}
+    minutes = data.get('minutes')
+    scope = str(data.get('scope', 'all'))
+    if minutes not in DETAIL_MINUTES:
+        return jsonify({'status': 'error', 'message': 'Ungültige Dauer'}), 400
+    sensor_ids = {s.sensor_id for s in sensors}
+    if scope not in ('all', 'sensors', 'navigator', 'scheduler') and not (scope.startswith('sensor:') and scope[7:] in sensor_ids):
+        return jsonify({'status': 'error', 'message': 'Ungültiger Umfang'}), 400
+    try:
+        name = event_log.start_detail(minutes, scope)
+    except OSError as e:
+        return jsonify({'status': 'error', 'message': f'Detail-Protokoll konnte nicht gestartet werden: {e}'}), 500
+    log_change(f"Detail log started for {minutes} minutes, scope {scope}, by user id {session.get('user_id')}")
+    return jsonify({'status': 'success', 'file': name}), 200
+
+
+# /api/detail_log/stop
+@api_bp.route('/detail_log/stop', methods=['POST'])
+def stop_detail_log():
+    """
+    Switch the detail log off
+    ---
+    post:
+      responses:
+        200:
+          description: Detail log stopped (or was not running)
+        403:
+          description: Unauthorized
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to stop the detail log'}), 403
+    return jsonify({'status': 'success', 'file': event_log.stop_detail()}), 200
+
+
+# /api/detail_log/files/<name>
+@api_bp.route('/detail_log/files/<name>', methods=['GET', 'DELETE'])
+def detail_log_file(name):
+    """
+    Download or delete a detail log file
+    ---
+    get:
+      responses:
+        200:
+          description: File download
+        404:
+          description: File not found
+    delete:
+      responses:
+        200:
+          description: File deleted
+        400:
+          description: The file is being written and cannot be deleted
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to access detail log files'}), 403
+    path = event_log.detail_file_path(name)
+    if not path:
+        return jsonify({'status': 'error', 'message': 'Datei nicht gefunden'}), 404
+    if request.method == 'DELETE':
+        if not event_log.delete_detail_file(name):
+            return jsonify({'status': 'error', 'message': 'Die Datei wird gerade geschrieben'}), 400
+        return jsonify({'status': 'success'}), 200
+    return send_file(os.path.abspath(path), as_attachment=True, mimetype='text/plain; charset=utf-8', download_name=name)
+
 
 # /api/export_logs
 @api_bp.route('/logs/export')
@@ -574,24 +822,35 @@ def edit_sensor(sensor_id):
                     example: Sensor not found
     """
     sensor = next((s for s in sensors if s.sensor_id == sensor_id), None)
-    if sensor:
-        data = request.json
-        sensor.name = data.get('name', sensor.name)
-        sensor.group_id = data.get('group_id', sensor.group_id)
-        sensor.datapoint_id = data.get('datapoint_id', sensor.datapoint_id)
-        # Save changes to config file
-        config = load_config()
-        for sensor_config in config['sensors']:
-            if sensor_config['sensor_id'] == sensor_id:
-                sensor_config['name'] = sensor.name
-                sensor_config['group_id'] = sensor.group_id
-                sensor_config['datapoint_id'] = sensor.datapoint_id
-                break
-        save_config(config)
-        log_change(f"Sensor {sensor_id} edited: name={sensor.name}, group_id={sensor.group_id}, datapoint_id={sensor.datapoint_id}")
-        save_sensor_values(sensor)
-        return jsonify({'status': 'success'}), 200
-    return jsonify({'status': 'error', 'message': 'Sensor not found'}), 404
+    if not sensor:
+        return jsonify({'status': 'error', 'message': 'Sensor not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    config = load_config()
+    name = str(data.get('name', sensor.name) or '').strip()
+    if not name:
+        return jsonify({'status': 'error', 'message': 'Der Name darf nicht leer sein'}), 400
+    group_id = str(data.get('group_id', sensor.group_id))
+    if not any(str(g['group_id']) == group_id for g in config['groups']):
+        return jsonify({'status': 'error', 'message': 'Gruppe nicht gefunden'}), 400
+    datapoint_id = str(data.get('datapoint_id', sensor.datapoint_id) or '').strip()
+    if datapoint_id.upper() == 'N/A':
+        datapoint_id = ''  # "N/A" is what the user interface shows for a missing datapoint
+
+    # Only now change the sensor object, so a rejected request leaves it untouched
+    sensor.name = name
+    sensor.group_id = group_id
+    sensor.datapoint_id = datapoint_id
+    for sensor_config in config['sensors']:
+        if sensor_config['sensor_id'] == sensor_id:
+            sensor_config['name'] = name
+            sensor_config['group_id'] = group_id
+            sensor_config['datapoint_id'] = datapoint_id
+            break
+    save_config(config)
+    log_change(f"Sensor {sensor_id} edited: name={sensor.name}, group_id={sensor.group_id}, datapoint_id={sensor.datapoint_id}")
+    save_sensor_values(sensor)
+    return jsonify({'status': 'success'}), 200
 
 # /api/sensors/virtual/add
 @api_bp.route('/sensors/virtual/add', methods=['PUT'])
@@ -909,22 +1168,22 @@ def add_group():
                     type: string
                     example: Error message
     """
-    data = request.json
+    values, problem = _group_values(request.get_json(silent=True) or {})
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
     config = load_config()
-    
+
     # Find the next available integer for group_id
     existing_group_ids = [int(group['group_id']) for group in config['groups']]
     next_group_id = max(existing_group_ids) + 1 if existing_group_ids else 1
 
     new_group = {
         "group_id": str(next_group_id),  # Use the next available integer
-        "name": data['name'],
-        "max_occupancy": data['max_occupancy'],
-        "welcome_text": data['welcome_text'],
-        "maintenance_mode": data.get('maintenance_mode', False)
+        **values
     }
     config['groups'].append(new_group)
     save_config(config)
+    log_change(f"Group {new_group['group_id']} added: name={new_group['name']}, max_occupancy={new_group['max_occupancy']}")
     return jsonify({'status': 'success', 'group': new_group}), 200
 
 # /api/groups/<group_id>/edit
@@ -993,21 +1252,18 @@ def edit_group(group_id):
                     type: string
                     example: Group not found
     """
-    data = request.json
     config = load_config()
-    
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
-    if group:
-        group['name'] = data.get('name', group['name'])
-        group['welcome_text'] = data.get('welcome_text', group['welcome_text'])
-        group['max_occupancy'] = data.get('max_occupancy', group['max_occupancy'])
-        group['maintenance_mode'] = data.get('maintenance_mode', group.get('maintenance_mode', False))
-        
-        save_config(config)
-        
-        log_change(f"Group {group_id} edited: name={group['name']}, welcome_text={group['welcome_text']}, max_occupancy={group['max_occupancy']}, maintenance_mode={group['maintenance_mode']}")
-        return jsonify({'status': 'success'}), 200
-    return jsonify({'status': 'error', 'message': 'Group not found'}), 404
+    if not group:
+        return jsonify({'status': 'error', 'message': 'Group not found'}), 404
+    values, problem = _group_values(request.get_json(silent=True) or {}, group)
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
+
+    group.update(values)
+    save_config(config)
+    log_change(f"Group {group_id} edited: name={group['name']}, welcome_text={group['welcome_text']}, max_occupancy={group['max_occupancy']}, maintenance_mode={group['maintenance_mode']}")
+    return jsonify({'status': 'success'}), 200
 
 # /api/groups/<group_id>/delete
 @api_bp.route('/groups/<group_id>/delete', methods=['DELETE'])
@@ -1081,6 +1337,7 @@ def delete_group(group_id):
 
     config['groups'] = [g for g in config['groups'] if str(g['group_id']) != group_id]
     save_config(config)
+    _remove_display_images(group)
     log_change(f"Group {group_id} deleted: {len(assigned)} sensor(s) moved to group {DEFAULT_GROUP_ID}")
     return jsonify({'status': 'success'}), 200
 
@@ -1138,7 +1395,9 @@ def toggle_maintenance_mode(group_id):
                     type: string
                     example: Group not found
     """
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data.get('maintenance_mode'), bool):
+        return jsonify({'status': 'error', 'message': 'Der Wartungsmodus muss true oder false sein'}), 400
     config = load_config()
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
     if group:
@@ -1214,18 +1473,17 @@ def update_group_settings(group_id):
                     type: string
                     example: Group not found
     """
-    data = request.json
     config = load_config()
     group = next((g for g in config['groups'] if str(g['group_id']) == group_id), None)
     if not group:
         return jsonify({'status': 'error', 'message': 'Group not found'}), 404
-    group['name'] = data.get('name', group['name'])
-    group['max_occupancy'] = data.get('max_occupancy', group['max_occupancy'])
-    group['welcome_text'] = data.get('welcome_text', group['welcome_text'])
-    group['maintenance_mode'] = data.get('maintenance_mode', group.get('maintenance_mode', False))
+    values, problem = _group_values(request.get_json(silent=True) or {}, group)
+    if problem:
+        return jsonify({'status': 'error', 'message': problem}), 400
 
+    group.update(values)
     save_config(config)
-    log_change(f"Group {group_id} settings updated: name={data.get('name')}, max_occupancy={data.get('max_occupancy')}, welcome_text={data.get('welcome_text')}, maintenance_mode={data.get('maintenance_mode')}")
+    log_change(f"Group {group_id} settings updated: name={group['name']}, max_occupancy={group['max_occupancy']}, welcome_text={group['welcome_text']}, maintenance_mode={group['maintenance_mode']}")
     return jsonify({'status': 'success'}), 200
 
 # /api/schedules

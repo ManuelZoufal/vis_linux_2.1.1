@@ -25,7 +25,7 @@ async function fetchAdminData() {
 
         const dbDataTable = document.getElementById('db-data-table').getElementsByTagName('tbody')[0];
         dbDataTable.replaceChildren();
-        (data.sensors || []).sort((a, b) => a.sensor_id.localeCompare(b.sensor_id)).forEach(row => {
+        (data.sensors || []).sort((a, b) => String(a.sensor_id).localeCompare(String(b.sensor_id), undefined, { numeric: true })).forEach(row => {
             const tr = document.createElement('tr');
             appendCells(tr, [row.sensor_id, row.name, row.ip_address, row.group_id, row.occupancy,
                 row.forward_value, row.backward_value, row.timestamp || 'N/A']);

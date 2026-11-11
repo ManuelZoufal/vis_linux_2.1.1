@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/logs_styles.css') }}">
 
 <div class="logs-section">
-    <h2>Logs</h2>
+    <h2>Änderungsprotokoll</h2>
     <button class="button button-primary" onclick="exportLogs()">Logs exportieren</button>
     <table id="logs-table">
         <thead>
@@ -40,6 +40,83 @@
         </thead>
         <tbody>
             <!-- Thread status will be populated here -->
+        </tbody>
+    </table>
+</div>
+
+<div class="thread-section">
+    <h2>Ereignisprotokoll</h2>
+    <p class="thread-summary">Ausfälle, Erholungen und ausgeführte Zeitpläne. Erfolgreiche Abfragen werden nicht aufgezeichnet.</p>
+    <div class="log-controls">
+        <label>Zeitraum
+            <select id="event-hours">
+                <option value="1">letzte Stunde</option>
+                <option value="6">letzte 6 Stunden</option>
+                <option value="24" selected>letzte 24 Stunden</option>
+                <option value="168">letzte 7 Tage</option>
+                <option value="0">alles</option>
+            </select>
+        </label>
+        <label>Quelle
+            <select id="event-source"><option value="">alle</option></select>
+        </label>
+        <button class="button button-primary" onclick="fetchEvents()">Aktualisieren</button>
+        <button class="button button-primary" onclick="exportEvents()">Ereignisse exportieren</button>
+    </div>
+    <p id="event-summary" class="thread-summary"></p>
+    <table id="event-table">
+        <thead>
+            <tr>
+                <th>Zeitstempel</th>
+                <th>Art</th>
+                <th>Quelle</th>
+                <th>Meldung</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Events will be populated here -->
+        </tbody>
+    </table>
+</div>
+
+<div class="thread-section">
+    <h2>Detail-Protokoll</h2>
+    <p class="thread-summary">
+        Zeichnet für eine begrenzte Zeit jede einzelne Anfrage an Sensoren und Navigator auf, auch die erfolgreichen.
+        Es schaltet sich nach Ablauf der Zeit oder beim Erreichen der Größengrenze selbst ab.
+    </p>
+    <p id="detail-status" class="thread-summary"></p>
+    <div class="log-controls">
+        <label>Dauer
+            <select id="detail-minutes">
+                <option value="15">15 Minuten</option>
+                <option value="60" selected>1 Stunde</option>
+                <option value="360">6 Stunden</option>
+                <option value="1440">24 Stunden</option>
+            </select>
+        </label>
+        <label>Umfang
+            <select id="detail-scope">
+                <option value="all">alles</option>
+                <option value="sensors">alle Sensoren</option>
+                <option value="navigator">nur Navigator</option>
+                <option value="scheduler">nur Scheduler</option>
+            </select>
+        </label>
+        <button class="button button-primary" onclick="startDetailLog()">Starten</button>
+        <button class="button button-danger" id="detail-stop" onclick="stopDetailLog()">Beenden</button>
+    </div>
+    <table id="detail-table">
+        <thead>
+            <tr>
+                <th>Datei</th>
+                <th>Größe</th>
+                <th>Zuletzt geändert</th>
+                <th>Aktionen</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Detail log files will be populated here -->
         </tbody>
     </table>
 </div>
