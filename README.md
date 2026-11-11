@@ -42,6 +42,8 @@ venv/bin/pip install -r requirements.txt
    | `LOG_DIR`, `LOG_MAX_MB`, `LOG_DETAIL_KEEP` | Verzeichnis für Ereignis- und Detail-Protokoll (Standard `logs`), Größengrenze je Datei in MB (Standard 200), Anzahl aufbewahrter Detail-Protokolle (Standard 5) |
    | `NAVIGATOR_RETRY_MINUTES` | Abstand der Token-Anfragen, nachdem 5 in Folge fehlgeschlagen sind (Standard 15) |
    | `CERT_WARN_DAYS` | Ab so vielen Tagen vor Ablauf des Zertifikats sehen Administratoren einen Hinweis (Standard 30) |
+   | `CERT_AUTO_RENEW`, `CERT_RENEW_DAYS`, `CERT_VALID_DAYS` | Automatische Erneuerung des Zertifikats (Standard an, 1 Tag vor Ablauf, 365 Tage gültig), siehe „Zertifikat“ |
+   | `CERT_CA_CERT`, `CERT_CA_KEY`, `CERT_CA_KEY_PASSWORD` | Eigene CA zum Ausstellen (Standard `ca.crt`, `ca.key`, kein Passwort) |
    | `LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCK_MINUTES` | Login-Sperre: nach so vielen Fehlversuchen (Standard 5) für einen Benutzernamen von einer Adresse sind weitere Versuche so viele Minuten (Standard 15) gesperrt. Ein Neustart hebt alle Sperren auf |
    | `APP_TIMEZONE` | Zeitzone für angezeigte Zeitstempel (Standard `Europe/Berlin`) |
    | `APP_PORT` | Port des Webservers (Standard 5000) |
@@ -90,9 +92,32 @@ Hinweise:
 
 ## Zertifikat
 
-Ohne `Webserver_IP.crt` und `Webserver_IP.pem` bricht der Start mit einer Meldung ab. Das Ablaufdatum
-steht für Administratoren unter „Logs“; ab `CERT_WARN_DAYS` Tagen vor Ablauf erscheint auf jeder Seite ein Hinweis.
-Die Anwendung lädt das Zertifikat nur beim Start, ein Tausch wird also erst nach einem Neustart wirksam.
+Das Ablaufdatum steht für Administratoren unter „Logs“; ab `CERT_WARN_DAYS` Tagen vor Ablauf erscheint auf
+jeder Seite ein Hinweis.
+
+### Automatische Erneuerung
+
+Der Thread „Zertifikat“ prüft stündlich. Ist das Zertifikat nur noch `CERT_RENEW_DAYS` Tage (Standard 1) gültig,
+abgelaufen oder fehlt es beim Start, erzeugt die Anwendung mit `openssl` einen neuen Schlüssel und ein neues
+Zertifikat (`CERT_VALID_DAYS`, Standard 365 Tage) und verwendet es sofort, ohne Neustart.
+
+- Liegen `ca.crt` und `ca.key` (`CERT_CA_CERT`, `CERT_CA_KEY`) im Programmverzeichnis, stellt diese CA das
+  Zertifikat aus. Geräte, die der CA vertrauen, merken vom Wechsel nichts. Die Laufzeit endet spätestens mit
+  der des CA-Zertifikats. Schlägt das Ausstellen fehl, bleibt das alte Zertifikat in Betrieb und der Thread
+  meldet den Fehler; es wird dann nicht ersatzweise selbstsigniert.
+- Ohne diese Dateien ist das neue Zertifikat selbstsigniert. Browser und Anzeigegeräte zeigen dann eine Warnung,
+  bis es dort als vertrauenswürdig hinterlegt wurde.
+- Inhaber und Adressen (subjectAltName) werden vom bisherigen Zertifikat übernommen. Gibt es keines, werden
+  Rechnername und IP-Adresse des Servers eingetragen.
+- Die bisherigen Dateien bleiben als `Webserver_IP.crt.alt` und `Webserver_IP.pem.alt` erhalten.
+- Ein von Hand getauschtes Zertifikat lädt die Anwendung bei der nächsten stündlichen Prüfung, sofort mit einem Neustart.
+- Unter „Logs“ stehen der Zeitpunkt der nächsten Erneuerung, die Art der Ausstellung und die Schaltfläche
+  „Zertifikat jetzt erneuern“. Abschalten: `CERT_AUTO_RENEW=false`; dann bricht der Start ohne Zertifikat ab.
+
+Der CA-Schlüssel `ca.key` liegt dafür auf dem Server; wer ihn lesen kann, kann Zertifikate ausstellen, denen
+die Geräte vertrauen. Er sollte nur für den Benutzer der Anwendung lesbar sein (`chmod 600 ca.key`).
+
+### Von Hand ausstellen
 
 Neues Zertifikat von der eigenen CA ausstellen (`ca.crt`, `ca.key`):
 
@@ -185,32 +210,9 @@ Auf GitHub laufen sie bei jedem Push und jedem Pull Request (`.github/workflows/
 
 ## Versionen
 
-Die Version steht in `app.py` (`APP_VERSION`) und wird in der Navigationsleiste angezeigt.
-Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt werden.
-
-| Version | Änderungen |
-|---|---|
-| 2.1.21 | Seite „Visualisierung“ als Kachelansicht: je Gruppe eine große Kachel mit der verkleinerten, live laufenden Belegungsanzeige als Vorschau; ein Klick öffnet die Anzeige |
-| 2.1.20 | Automatische Tests (`tests/`, siehe Abschnitt „Tests“). Zwei Befunde der Tests behoben: das Skript der Seite „Visualisierung konfigurieren“ löste beim Laden einen Fehler aus und wurde entfernt (das Formular funktioniert ohne es); der Export des Änderungsprotokolls nennt die Datei jetzt mit vollem Pfad |
-| 2.1.19 | Weniger Protokollvolumen: erfolgreiche Abfragen, Uploads und die Zeilen des Webservers je Anfrage stehen nur noch im Debug-Modus im Server-Log; das Änderungsprotokoll ist wie die anderen Protokolle auf `LOG_MAX_MB` begrenzt, und die Seite „Logs“ lädt nur die neuesten 500 Einträge (neueste zuerst). Das ausführliche Server-Log lässt sich unter „Logs“ für 15 Minuten bis 24 Stunden ohne Neustart einschalten |
-| 2.1.18 | Hanwha-Kameras: Der Ausweichweg über HTTP greift jetzt auch, wenn die Kamera die Verbindung auf Port 443 annimmt, aber den TLS-Handshake nicht abschließt; die TLS-Fähigkeit wird vor dem Senden eines Steuerbefehls geprüft |
-| 2.1.17 | Schalter „Zählung aktiv“ je Sensor (`"counting": false` in `config.json`) für Geräte ohne Zählfunktion, z. B. Heatmap-Kameras: keine Abfrage, kein Zurücksetzen, kein Upload zu Navigator, kein Beitrag zur Belegung; Neustart bleibt möglich; im Thread-Status „Keine Zählung“ statt Fehler; Zurücksetzen und Neustart melden den Grund, wenn sie scheitern |
-| 2.1.16 | Hanwha-Kameras: Zurücksetzen und Neustart gehen über HTTP, wenn die Kamera auf HTTPS nicht antwortet; der funktionierende Weg wird gemerkt und im Ereignisprotokoll vermerkt |
-| 2.1.15 | Ereignisprotokoll (Ausfälle, Erholungen, Zeitpläne mit Grund je Sensor) und zeitlich begrenztes Detail-Protokoll unter „Logs“, je Datei auf `LOG_MAX_MB` (200 MB) begrenzt; kurze Fehlertexte statt ganzer Antwortseiten; Navigator fordert nach 5 Fehlversuchen nur noch alle `NAVIGATOR_RETRY_MINUTES` (15) Minuten ein Token an |
-| 2.1.14 | Aufräumen: ungenutzter Code entfernt (Tabellen `roles` und `schedules`, der Thread „Datenbankauszug“, ungenutzte Importe), Laufzeitdateien und `__pycache__` nicht mehr im Repository, Vorlage `env` heißt `.env.example`; die Seite „Logs“ verträgt ein fehlendes oder beschädigtes Änderungsprotokoll |
-| 2.1.13 | Eingaben bei Gruppen und beim Bearbeiten von Sensoren werden geprüft (Meldung statt Fehlerseite); maximale Belegung wird als Zahl gespeichert; Sensoren, Gruppen und IP-Adressen sortieren numerisch; beim Löschen einer Gruppe werden ihre Bilder entfernt; der Datenpunkt eines noch nie erreichten Sensors geht beim Bearbeiten nicht mehr verloren; Fehlertexte enthalten bei HTTP-Fehlern die Antwort des Sensors |
-| 2.1.12 | Ablaufdatum des Zertifikats unter „Logs“, im Export und als Hinweis für Administratoren ab 30 Tagen vor Ablauf (`CERT_WARN_DAYS`); Zertifikat und Schlüssel sind nicht mehr Teil des Repositorys |
-| 2.1.11 | Sensor-Zugangsdaten in `.env` statt in `config.json`: Standard je Sensortyp (`SENSOR_IEE_PASSWORD`, `SENSOR_HANWHA_USERNAME`, `SENSOR_HANWHA_PASSWORD`) und Einzelwerte je Sensor (`SENSOR_<ID>_USERNAME`, `SENSOR_<ID>_PASSWORD`); Seite „Sensor-Zugang“ zum Ändern, Prüfen und zum Übernehmen der alten Werte aus `config.json` |
-| 2.1.10 | Abschnitt „Debug-Informationen“ unter „Logs“ entfernt (zeigte nur „is active“ je Thread, die Angabe „inactive“ konnte nie erscheinen); stattdessen lässt sich der Thread-Status als Textdatei exportieren |
-| 2.1.9 | Navigator: ein Token wird für alle Uploads wiederverwendet statt für jeden Sensor neu angefordert; Sensoren ohne Datenpunkt werden übersprungen; Platzhalterbild für den Wartungsmodus (`static/images/maintenance.png`) |
-| 2.1.8 | Chart.js wird lokal aus `static/vendor/` ausgeliefert statt vom CDN: die Belegungsanzeige funktioniert ohne Internetzugang des Anzeigegeräts |
-| 2.1.7 | Login-Sperre nach wiederholten Fehlversuchen (`LOGIN_MAX_ATTEMPTS`, `LOGIN_LOCK_MINUTES`); Rollenänderungen und gelöschte Benutzer wirken sofort statt erst nach Ablauf der Sitzung; das eigene Konto und der letzte Administrator lassen sich nicht löschen oder herabstufen |
-| 2.1.6 | Zeitstempel folgen der Sommerzeit (`APP_TIMEZONE`, Standard `Europe/Berlin`); Änderungen an `config.json` laufen unter einer Sperre und werden atomar geschrieben; Navigator-Zugangsdaten lassen sich als Administrator unter „Navigator-Zugang“ ändern und testen |
-| 2.1.5 | Virtuelle Sensoren stören den Start nicht mehr und lassen sich bearbeiten (Name, Gruppe, Belegung); Gruppe löschen legt die Standardgruppe nur einmal an und verschiebt die Sensoren korrekt; Passwort ändern funktioniert für alle Rollen; ein doppelter Benutzername ergibt eine Meldung statt einer Fehlerseite; Meldungen werden auf allen Seiten der Benutzerverwaltung angezeigt |
-| 2.1.4 | Zeitpläne: Bearbeiten ändert den bestehenden Zeitplan statt einen neuen anzulegen; gelöschte und geänderte Zeitpläne wirken sofort statt erst nach einem Neustart; wöchentliche Zeitpläne funktionieren; Eingaben werden geprüft; ein fehlgeschlagener Sensor bricht die Aktion für die übrigen nicht mehr ab; Änderungen stehen im Änderungsprotokoll |
-| 2.1.3 | Anmeldepflicht für die schreibende API und die Visualisierungs-Konfiguration; Namen und Texte werden in der Oberfläche als Text statt als HTML eingesetzt; Webinterface-Proxy entfernt, der Knopf öffnet den Sensor in einem neuen Tab |
-| 2.1.2 | Live-Thread-Status unter „Logs“; Start ohne Debug-Modus und Reloader (ein Prozess); Pflichtwerte in `.env`; Benutzer und Passwörter bleiben über Neustarts erhalten; Timeouts für Sensorabfragen; Korrekturen an `update-settings` und am Lauftext |
-| 2.1.1 | Ausgangsstand |
+Die Version steht in `app.py` (`APP_VERSION`) und wird in der Navigationsleiste angezeigt. Der Änderungsverlauf steht in
+[CHANGELOG.md](CHANGELOG.md); angemeldete Benutzer sehen ihn in der Oberfläche mit einem Klick auf die Versionsnummer.
+Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung.
 
 ## Enthaltene Bibliotheken
 

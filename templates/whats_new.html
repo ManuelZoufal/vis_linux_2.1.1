@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Was ist neu{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/whats_new.css') }}">
+
+<div class="whats-new">
+    <h2>Was ist neu</h2>
+    <p class="whats-new-hint">Installiert ist Version {{ app_version }}.</p>
+    {% for entry in entries %}
+    <section class="whats-new-version{% if entry.version == app_version %} whats-new-current{% endif %}">
+        <h3>
+            Version {{ entry.version }}
+            {% if entry.version == app_version %}<span class="whats-new-badge">installiert</span>{% endif %}
+            {% if entry.date %}<span class="whats-new-date">{{ entry.date }}</span>{% endif %}
+        </h3>
+        <ul>
+            {% for change in entry.changes %}
+            <li>{% for is_code, text in split_code(change) %}{% if is_code %}<code>{{ text }}</code>{% else %}{{ text }}{% endif %}{% endfor %}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% else %}
+    <p class="whats-new-hint">Der Änderungsverlauf (CHANGELOG.md) wurde nicht gefunden.</p>
+    {% endfor %}
+</div>
+{% endblock %}

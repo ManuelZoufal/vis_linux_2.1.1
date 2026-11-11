@@ -11,6 +11,7 @@
     <table class="schedules-table" id="schedules-table">
         <thead>
             <tr>
+                <th>Beschreibung</th>
                 <th>Aktion</th>
                 <th>Intervall</th>
                 <th>Tag</th>
@@ -31,6 +32,10 @@
         <span class="close" onclick="closeModal('scheduleModal')">&times;</span>
         <h2 id="scheduleModalTitle">Planmäßige Aktionen</h2>
         <form id="scheduleForm" class="modal-form">
+            <div class="form-group">
+                <label for="scheduleDescription">Beschreibung (optional)</label>
+                <input type="text" id="scheduleDescription" name="description" maxlength="100" placeholder="z. B. Zählwerte vor Öffnung zurücksetzen">
+            </div>
             <div class="form-group">
                 <label for="scheduleAction">Aktion</label>
                 <select id="scheduleAction" name="action" required>
