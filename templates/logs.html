@@ -28,6 +28,10 @@
     <button class="button button-primary" onclick="exportThreadStatus()">Thread-Status exportieren</button>
     <p id="thread-summary" class="thread-summary">Lade Thread-Status …</p>
     <p id="certificate-status" class="thread-summary"></p>
+    <p class="thread-summary">
+        <span id="certificate-renewal"></span>
+        <button class="button button-secondary" id="certificate-renew-button" onclick="renewCertificate()">Zertifikat jetzt erneuern</button>
+    </p>
     <table id="thread-table">
         <thead>
             <tr>

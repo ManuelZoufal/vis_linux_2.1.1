@@ -372,6 +372,31 @@ def get_thread_status():
         }), 200
     return jsonify({'error': 'Unauthorized to view thread status'}), 403
 
+# /api/certificate/renew
+@api_bp.route('/certificate/renew', methods=['POST'])
+@api_login_required(role='Administrator')
+def renew_certificate():
+    """
+    Create a new certificate now and put it into use without a restart
+    ---
+    post:
+      responses:
+        200:
+          description: New certificate in use; the response contains its status
+        500:
+          description: The certificate could not be created, the previous one stays in use
+    """
+    user = f"Benutzer-ID {session.get('user_id')}"
+    try:
+        status = certificate.renew(f"manuell durch {user}")
+    except Exception as e:
+        logging.exception("Certificate renewal failed")
+        event_log.event('error', 'CertificateThread', f"Manuelle Erneuerung fehlgeschlagen: {e}", 'Zertifikat')
+        return jsonify({'error': f"Das Zertifikat konnte nicht erneuert werden: {event_log.shorten(e, 300)}"}), 500
+    log_change(f"Zertifikat erneuert durch {user} ({certificate.METHOD_LABELS[status['renew_method']]}), gültig bis {status['valid_until']}")
+    return jsonify({'status': 'success', 'certificate': status}), 200
+
+
 THREAD_STATE_LABELS = {
     'ok': 'OK',
     'error': 'Fehler',
@@ -415,7 +440,7 @@ def export_thread_status():
         f"Version:   {current_app.config.get('APP_VERSION', 'unbekannt')}",
         f"Server:    {socket.gethostname()}",
         f"Übersicht: {ok_count} von {len(threads) - idle_count} Threads OK" + (f", {idle_count} ohne Zählung" if idle_count else ""),
-        f"TLS:       {certificate.get_status()['message']}",
+        f"TLS:       {certificate.get_status()['message']} {certificate.get_status()['renew_message']}",
         '',
     ]
     for thread in threads:
@@ -1739,6 +1764,7 @@ def add_schedule_route():
     """
     data = request.get_json(silent=True) or {}
     new_schedule = {
+        "description": data.get('description', '').strip() if isinstance(data.get('description', ''), str) else data.get('description'),
         "action": data.get('action'),
         "interval": data.get('interval'),
         "day": data.get('day', ''),
@@ -1762,7 +1788,7 @@ def add_schedule_route():
 
     # Add the new schedule to the scheduler
     scheduler_add_schedule(new_schedule)
-    log_change(f"Schedule {new_schedule['id']} added: action={new_schedule['action']}, interval={new_schedule['interval']}, day={new_schedule['day']}, time={new_schedule['time']}, sensors={new_schedule['sensors']}")
+    log_change(f"Schedule {new_schedule['id']} added: description={new_schedule['description']!r}, action={new_schedule['action']}, interval={new_schedule['interval']}, day={new_schedule['day']}, time={new_schedule['time']}, sensors={new_schedule['sensors']}")
 
     return jsonify({'status': 'success', 'schedule': new_schedule}), 200
 
@@ -1847,9 +1873,9 @@ def edit_schedule_route(schedule_id):
         return jsonify({'status': 'error', 'message': 'Schedule not found'}), 404
 
     updated = dict(schedule)
-    for key in ('action', 'interval', 'day', 'time', 'sensors'):
+    for key in ('description', 'action', 'interval', 'day', 'time', 'sensors'):
         if key in data:
-            updated[key] = data[key]
+            updated[key] = data[key].strip() if key == 'description' and isinstance(data[key], str) else data[key]
     problem = validate_schedule(updated)
     if problem:
         return jsonify({'status': 'error', 'message': problem}), 400
@@ -1859,7 +1885,7 @@ def edit_schedule_route(schedule_id):
 
     # Replace the job in the scheduler
     scheduler_edit_schedule(schedule['id'], schedule)
-    log_change(f"Schedule {schedule['id']} edited: action={schedule['action']}, interval={schedule['interval']}, day={schedule['day']}, time={schedule['time']}, sensors={schedule['sensors']}")
+    log_change(f"Schedule {schedule['id']} edited: description={schedule.get('description', '')!r}, action={schedule['action']}, interval={schedule['interval']}, day={schedule['day']}, time={schedule['time']}, sensors={schedule['sensors']}")
 
     return jsonify({'status': 'success', 'schedule': schedule}), 200
 

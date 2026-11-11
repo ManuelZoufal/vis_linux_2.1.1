@@ -35,6 +35,7 @@ def load_schedule_from_config(config_path):
 ACTIONS = ('reset', 'reboot', 'upload')
 WEEKDAYS = ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')
 INTERVALS = ('every_minute', 'every_5_minutes', 'every_15_minutes', 'every_30_minutes', 'hourly', 'daily', 'weekly')
+MAX_DESCRIPTION_LENGTH = 100
 TIME_PATTERN = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 
 
@@ -58,6 +59,11 @@ def validate_schedule(schedule, check_sensors=True):
             return f"Ungültige Uhrzeit (erwartet HH:MM): {schedule.get('time')}"
     if schedule['interval'] == 'weekly' and str(schedule.get('day', '')).lower() not in WEEKDAYS:
         return f"Ungültiger Wochentag: {schedule.get('day')}"
+    description = schedule.get('description', '')
+    if not isinstance(description, str):
+        return "Die Beschreibung muss ein Text sein"
+    if len(description) > MAX_DESCRIPTION_LENGTH:
+        return f"Die Beschreibung darf höchstens {MAX_DESCRIPTION_LENGTH} Zeichen lang sein"
     sensor_ids = schedule.get('sensors')
     if not isinstance(sensor_ids, list) or not sensor_ids:
         return "Es muss mindestens ein Sensor ausgewählt sein"
@@ -85,7 +91,8 @@ def execute_schedule(schedule):
     schedule (dict): Schedule to execute
     """
     source = SCHEDULER_THREAD_NAME
-    title = f"Zeitplan {schedule.get('id')} ({schedule['action']})"
+    description = str(schedule.get('description') or '').strip()
+    title = f"Zeitplan {schedule.get('id')}" + (f" „{description}“" if description else "") + f" ({schedule['action']})"
     started = time.monotonic()
     event_log.detail(source, f"{title} gestartet für Sensoren {', '.join(map(str, schedule['sensors']))}")
     succeeded = []

@@ -39,6 +39,17 @@ body {
     white-space: nowrap;
 
 }
+/* For logged in users the version is a link to the change history */
+.navbar a.navbar-version {
+    margin-left: auto;
+    color: rgba(255,255,255,0.75);
+    font-size: 0.8em;
+    padding: 16px 18px;
+    text-decoration: underline dotted;
+}
+.navbar a.navbar-version:hover {
+    color: #fff;
+}
 
 .row-maintenance {
     background-color: #ffd6d6 !important;

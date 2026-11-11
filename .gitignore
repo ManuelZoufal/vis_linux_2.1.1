@@ -229,5 +229,8 @@ static/uploads/*
 # TLS certificate and private key of the web server (never commit)
 Webserver_IP.crt
 Webserver_IP.pem
+# Left by the automatic certificate renewal
+*.alt
+.cert-*/
 *.key
 *.csr

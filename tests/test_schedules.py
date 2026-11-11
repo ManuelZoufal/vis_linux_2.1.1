@@ -135,3 +135,39 @@ def test_sensors_without_counting_are_skipped_by_reset_and_upload_but_rebooted(m
     assert [f.calls[-1] for f in fakes] == ['Neustart'] * 3, "a reboot stays possible without counting"
     messages = [e['message'] for e in event_log.read_events(1)[0] if e['kind'] == 'schedule']
     assert any('2 ohne Zählung übersprungen' in m for m in messages)
+
+
+def test_description_is_stored_shown_and_can_be_changed(admin, loaded_jobs):
+    body = {'action': 'reset', 'interval': 'daily', 'time': '03:00', 'sensors': ['1'], 'description': '  Nachtreset Eingang  '}
+    created = admin.put('/api/schedules/add', json=body).get_json()['schedule']
+    assert created['description'] == 'Nachtreset Eingang'
+    assert read_config()['schedules'][1]['description'] == 'Nachtreset Eingang'
+    assert admin.post('/api/schedules/2/edit', json={'description': 'Neu'}).status_code == 200
+    assert read_config()['schedules'][1]['description'] == 'Neu'
+    # Editing another field keeps the description; an empty one removes the text
+    assert admin.post('/api/schedules/2/edit', json={'time': '04:00'}).status_code == 200
+    assert read_config()['schedules'][1]['description'] == 'Neu'
+    assert admin.post('/api/schedules/2/edit', json={'description': ''}).status_code == 200
+    assert read_config()['schedules'][1].get('description', '') == ''
+    # Schedules from before this field have none and stay valid
+    assert 'description' not in read_config()['schedules'][0]
+    assert admin.post('/api/schedules/1/edit', json={'time': '06:30'}).status_code == 200
+
+
+@pytest.mark.parametrize('description,fragment', [('x' * 101, 'höchstens 100'), (5, 'Text')])
+def test_invalid_description_is_rejected(admin, loaded_jobs, description, fragment):
+    before = read_config()
+    body = {'action': 'reset', 'interval': 'daily', 'time': '03:00', 'sensors': ['1'], 'description': description}
+    response = admin.put('/api/schedules/add', json=body)
+    assert response.status_code == 400 and fragment in response.get_json()['message']
+    assert read_config() == before
+    assert admin.put('/api/schedules/add', json={**body, 'description': 'x' * 100}).status_code == 200
+
+
+def test_description_appears_in_the_report_of_an_executed_schedule(monkeypatch):
+    execute(monkeypatch, [FakeSensor('1')], {'id': 7, 'action': 'reset', 'sensors': ['1'], 'description': 'Nachtreset'})
+    events = [e for e in event_log.read_events(1)[0] if e['kind'] == 'schedule']
+    assert len(events) == 1 and events[0]['message'].startswith('Zeitplan 7 „Nachtreset“ (reset)')
+    status = execute(monkeypatch, [FakeSensor('1', 'fail')], {'id': 8, 'action': 'reset', 'sensors': ['1']})
+    assert status['last_error'].startswith('Zeitplan 8 (reset)')
+

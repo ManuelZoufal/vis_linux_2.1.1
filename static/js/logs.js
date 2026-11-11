@@ -88,7 +88,30 @@ async function fetchThreadStatus() {
     if (certificate && data.certificate) {
         certificate.textContent = data.certificate.message;
         certificate.classList.toggle('thread-summary-offline', data.certificate.state !== 'ok');
+        document.getElementById('certificate-renewal').textContent = data.certificate.renew_message || '';
     }
+}
+
+async function renewCertificate() {
+    const method = document.getElementById('certificate-renewal').textContent.includes('selbstsigniert')
+        ? 'Das neue Zertifikat ist selbstsigniert: Browser und Anzeigegeräte zeigen eine Warnung, bis es dort als vertrauenswürdig hinterlegt ist.'
+        : 'Das neue Zertifikat wird von der eigenen CA ausgestellt.';
+    if (!confirm('Jetzt einen neuen Schlüssel und ein neues Zertifikat erstellen und sofort verwenden?\n\n'
+        + method + '\nDie bisherigen Dateien bleiben als *.alt erhalten.')) {
+        return;
+    }
+    const button = document.getElementById('certificate-renew-button');
+    button.disabled = true;
+    try {
+        const response = await fetch('/api/certificate/renew', { method: 'POST' });
+        const data = await response.json();
+        alert(response.ok ? 'Zertifikat erneuert. ' + data.certificate.message : (data.error || 'Fehler ' + response.status));
+    } catch (error) {
+        // The connection of this very request can be affected by the change of the certificate
+        alert('Keine Antwort erhalten. Bitte die Seite neu laden und den Zertifikatsstatus prüfen.');
+    }
+    button.disabled = false;
+    fetchThreadStatus();
 }
 
 function exportLogs() {

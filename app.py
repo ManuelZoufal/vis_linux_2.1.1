@@ -15,7 +15,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Version of this code. Raised with every update, see "Versionen" in README.md.
 # Deliberately not read from .env, so the displayed version always matches the installed files.
-APP_VERSION = "2.1.20"
+APP_VERSION = "2.1.22"
 APP_DEBUG = os.environ.get("APP_DEBUG", "false").strip().lower() in ("1", "true", "yes")
 APP_PORT = int(os.environ.get("APP_PORT", 5000))
 SESSION_LIFETIME_HOURS = int(os.environ.get("SESSION_LIFETIME_HOURS", 24))
@@ -113,13 +113,6 @@ if __name__ == "__main__":
     SENSOR_INTERVAL = 7  # Intervall in Sekunden für Sensorabfragen
     NAVIGATOR_INTERVAL = 60  # Intervall in Sekunden für Upload zu Navigator
 
-    # Certificate and key are not part of the repository, see "Zertifikat" in README.md
-    missing_files = [path for path in (certificate.CERT_FILE, certificate.KEY_FILE) if not os.path.exists(path)]
-    if missing_files:
-        sys.exit(f"[VIS-START] Abbruch: Datei(en) fehlen: {', '.join(missing_files)} (siehe README.md, Abschnitt Zertifikat)")
-    cert_status = certificate.load()
-    logging.log(logging.INFO if cert_status['state'] == 'ok' else logging.WARNING, f"[VIS-START] {cert_status['message']}")
-
     # Runtime files that are not part of the repository
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     open('change_log.txt', 'a').close()
@@ -128,12 +121,36 @@ if __name__ == "__main__":
     event_log.init()
     event_log.event('start', 'App', f"Anwendung gestartet, Version {APP_VERSION}", 'Anwendung')
 
+    # Certificate and key are not part of the repository, see "Zertifikat" in README.md.
+    # Missing or unusable files are created if the automatic renewal is on.
+    try:
+        missing_files = [path for path in (certificate.CERT_FILE, certificate.KEY_FILE) if not os.path.exists(path)]
+        if missing_files:
+            if not certificate.AUTO_RENEW:
+                sys.exit(f"[VIS-START] Abbruch: Datei(en) fehlen: {', '.join(missing_files)} (siehe README.md, Abschnitt Zertifikat)")
+            certificate.renew(f"Datei fehlt beim Start: {', '.join(missing_files)}")
+        try:
+            ssl_context = certificate.create_ssl_context()
+        except (OSError, ValueError) as e:  # ssl.SSLError is an OSError: e.g. certificate and key do not match
+            if not certificate.AUTO_RENEW:
+                sys.exit(f"[VIS-START] Abbruch: Zertifikat und Schlüssel können nicht geladen werden: {e}")
+            certificate.renew(f"Zertifikat und Schlüssel beim Start nicht ladbar ({type(e).__name__})")
+            ssl_context = certificate.create_ssl_context()
+    except RuntimeError as e:
+        sys.exit(f"[VIS-START] Abbruch: Es konnte kein Zertifikat erstellt werden: {e}")
+    cert_status = certificate.load()
+    logging.log(logging.INFO if cert_status['state'] == 'ok' else logging.WARNING,
+                f"[VIS-START] {cert_status['message']} {cert_status['renew_message']}")
+
     init_db()
 
     for sensor in sensors:
         start_monitored_thread(f"SensorThread-{sensor.sensor_id}", f"Sensor {sensor.sensor_id}: {sensor.name}", SENSOR_INTERVAL, sensor_thread, sensor, SENSOR_INTERVAL)
 
     start_monitored_thread("NavigatorUploadThread", "Navigator-Upload", NAVIGATOR_INTERVAL, navigator_thread, NAVIGATOR_INTERVAL)
+
+    # Renews the certificate shortly before it expires (also right now, if it is already due)
+    start_monitored_thread("CertificateThread", "Zertifikat", certificate.CHECK_SECONDS, certificate.renewal_thread, certificate.CHECK_SECONDS)
 
     # The scheduler registers and starts its own thread
     start_scheduler('config.json')
@@ -144,7 +161,7 @@ if __name__ == "__main__":
     app.run(
         debug=APP_DEBUG,
         use_reloader=False,
-        ssl_context=(certificate.CERT_FILE, certificate.KEY_FILE),
+        ssl_context=ssl_context,  # kept by src.certificate, which loads a renewed certificate into it
         host='0.0.0.0',
         port=APP_PORT,
     )

@@ -30,7 +30,7 @@ function renderSchedules(scheduleList){
     scheduleList.forEach(schedule => {
         const sensorNames = Array.isArray(schedule.sensors) ? schedule.sensors.join(', ') : schedule.sensors;
         const tr = document.createElement('tr');
-        appendCells(tr, [schedule.action, schedule.interval, schedule.day || 'N/A', schedule.time, sensorNames]);
+        appendCells(tr, [schedule.description || '–', schedule.action, schedule.interval, schedule.day || 'N/A', schedule.time, sensorNames]);
         const actions = document.createElement('td');
         actions.append(
             createButton('Bearbeiten', 'button-secondary', () => openEditScheduleModal(schedule.id)), ' ',
@@ -76,6 +76,7 @@ function openEditScheduleModal(scheduleId) {
     if (!schedule) return;
 
     document.getElementById('scheduleModalTitle').innerText = 'Geplante Aktion bearbeiten';
+    document.getElementById('scheduleDescription').value = schedule.description || '';
     document.getElementById('scheduleAction').value = schedule.action;
     document.getElementById('scheduleInterval').value = schedule.interval;
     document.getElementById('scheduleDay').value = schedule.day || '';

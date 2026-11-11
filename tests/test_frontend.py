@@ -78,3 +78,20 @@ def test_env_template_names_every_variable_the_code_reads():
     assert sensor_keys == {'SENSOR_IEE_PASSWORD', 'SENSOR_HANWHA_USERNAME', 'SENSOR_HANWHA_PASSWORD',
                            'SENSOR_<ID>_USERNAME', 'SENSOR_<ID>_PASSWORD'}
     assert documented - read - sensor_keys == set(), "in .env.example but not read by the code"
+
+
+def test_visualization_page_offers_the_tile_view_without_login(anonymous):
+    html = anonymous.get('/visualize/').get_data(as_text=True)
+    assert 'id="group-tiles"' in html and 'js/visualize.js' in html
+    script = (ROOT / 'static' / 'js' / 'visualize.js').read_text(encoding='utf-8')
+    # The preview is the real display page of the group, and the group id is escaped in its address
+    assert '/visualize/display?group_id=${encodeURIComponent(groupId)}' in script
+    assert "frame.loading = 'lazy'" in script, "previews outside the window are not loaded"
+
+
+def test_display_page_can_be_shown_inside_the_tile_view(anonymous):
+    """The preview embeds the display page; a header that forbids framing would leave the tiles empty."""
+    response = anonymous.get('/visualize/display?group_id=1')
+    assert response.status_code == 200
+    assert 'X-Frame-Options' not in response.headers
+    assert 'frame-ancestors' not in response.headers.get('Content-Security-Policy', '')

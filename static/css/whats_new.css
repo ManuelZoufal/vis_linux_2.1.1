@@ -1,0 +1,63 @@
+@import url('base.css');
+
+.whats-new h2 {
+    text-align: center;
+    margin-bottom: 6px;
+}
+
+.whats-new-hint {
+    text-align: center;
+    color: #555;
+    margin-bottom: 20px;
+}
+
+.whats-new-version {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 4px 20px 10px;
+    margin-bottom: 16px;
+    background-color: #fff;
+}
+
+.whats-new-current {
+    border-color: #009999;
+    box-shadow: 0 0 0 2px rgba(0, 153, 153, 0.25);
+}
+
+.whats-new-version h3 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 0 8px;
+}
+
+.whats-new-date {
+    margin-left: auto;
+    font-weight: normal;
+    font-size: 0.85em;
+    color: #666;
+}
+
+.whats-new-badge {
+    padding: 2px 10px;
+    border-radius: 12px;
+    background-color: #009999;
+    color: #fff;
+    font-size: 0.7em;
+}
+
+.whats-new-version ul {
+    margin: 0;
+    padding-left: 22px;
+}
+
+.whats-new-version li {
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.whats-new-version code {
+    background-color: #f1f1f5;
+    padding: 1px 5px;
+    border-radius: 4px;
+}

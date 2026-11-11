@@ -73,7 +73,7 @@ def read_config():
 
 def _clean_environment():
     for key in list(os.environ):
-        if key.startswith('SENSOR_') or key in ('LOG_MAX_MB', 'APP_TIMEZONE', 'CERT_WARN_DAYS'):
+        if key.startswith('SENSOR_') or key.startswith('CERT_') or key in ('LOG_MAX_MB', 'APP_TIMEZONE'):
             del os.environ[key]
     os.environ.update(BASE_ENV)
 
@@ -165,6 +165,7 @@ def fresh_state(monkeypatch):
     navigator._last_token_error['reason'] = None
     navigator._last_token_lifetime['seconds'] = 0
     certificate._loaded.update(not_after=None, names=[], mtime=None, error=None)
+    certificate._context = None
     yield
     schedule_lib.clear()
     server_log.stop('Testende')

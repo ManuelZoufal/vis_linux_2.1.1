@@ -31,7 +31,11 @@
         {% else %}
             <a href="/admin/login">Anmelden</a>
         {% endif %}
+        {% if session['user_id'] %}
+            <a class="navbar-version" href="/whats_new" title="Was ist neu?">v{{ app_version }}</a>
+        {% else %}
             <span class="navbar-version">v{{ app_version }}</span>
+        {% endif %}
     </div>
     {% if session['role'] == 'Administrator' and certificate.state in ('warning', 'expired') %}
         <div class="certificate-banner certificate-{{ certificate.state }}">{{ certificate.message }}</div>

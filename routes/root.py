@@ -1,8 +1,11 @@
 from . import root_bp
 
-from flask import render_template
+import os
+
+from flask import render_template, current_app
 
 from src.helpers import login_required
+from src import changelog
 
 
 @root_bp.route('/', endpoint='index')
@@ -33,3 +36,11 @@ def logs():
 @login_required(role='Administrator')
 def schedules():
     return render_template('schedules.html')
+
+
+@root_bp.route('/whats_new', endpoint='whats_new')
+@login_required()
+def whats_new():
+    """Change history, opened by a click on the version number"""
+    entries = changelog.load(os.path.join(current_app.root_path, 'CHANGELOG.md'))
+    return render_template('whats_new.html', entries=entries, split_code=changelog.split_code)
