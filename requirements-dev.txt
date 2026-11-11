@@ -1,0 +1,3 @@
+# Zusätzlich zu requirements.txt, nur für die Tests
+-r requirements.txt
+pytest==9.2.0

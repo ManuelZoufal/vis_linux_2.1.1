@@ -168,6 +168,21 @@ Administratoren finden unter „Logs“:
   und Navigator mit Dauer, Status und gekürzter Antwort. Es endet nach Ablauf der Zeit, beim Erreichen von `LOG_MAX_MB`
   oder bei einem Neustart. Passwörter, Token und Antworten auf Anmeldungen werden nicht geschrieben.
 
+## Tests
+
+Die Tests liegen in `tests/` und brauchen keine Sensoren, kein Navigator und keinen laufenden Server. Sie arbeiten
+in einem temporären Verzeichnis mit eigener Konfiguration; Anfragen an andere Adressen als `127.0.0.1` schlagen fehl.
+
+```bash
+venv/bin/pip install -r requirements-dev.txt
+```
+
+```bash
+venv/bin/python -m pytest
+```
+
+Auf GitHub laufen sie bei jedem Push und jedem Pull Request (`.github/workflows/tests.yml`).
+
 ## Versionen
 
 Die Version steht in `app.py` (`APP_VERSION`) und wird in der Navigationsleiste angezeigt.
@@ -175,6 +190,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
+| 2.1.20 | Automatische Tests (`tests/`, siehe Abschnitt „Tests“). Zwei Befunde der Tests behoben: das Skript der Seite „Visualisierung konfigurieren“ löste beim Laden einen Fehler aus und wurde entfernt (das Formular funktioniert ohne es); der Export des Änderungsprotokolls nennt die Datei jetzt mit vollem Pfad |
 | 2.1.19 | Weniger Protokollvolumen: erfolgreiche Abfragen, Uploads und die Zeilen des Webservers je Anfrage stehen nur noch im Debug-Modus im Server-Log; das Änderungsprotokoll ist wie die anderen Protokolle auf `LOG_MAX_MB` begrenzt, und die Seite „Logs“ lädt nur die neuesten 500 Einträge (neueste zuerst). Das ausführliche Server-Log lässt sich unter „Logs“ für 15 Minuten bis 24 Stunden ohne Neustart einschalten |
 | 2.1.18 | Hanwha-Kameras: Der Ausweichweg über HTTP greift jetzt auch, wenn die Kamera die Verbindung auf Port 443 annimmt, aber den TLS-Handshake nicht abschließt; die TLS-Fähigkeit wird vor dem Senden eines Steuerbefehls geprüft |
 | 2.1.17 | Schalter „Zählung aktiv“ je Sensor (`"counting": false` in `config.json`) für Geräte ohne Zählfunktion, z. B. Heatmap-Kameras: keine Abfrage, kein Zurücksetzen, kein Upload zu Navigator, kein Beitrag zur Belegung; Neustart bleibt möglich; im Thread-Status „Keine Zählung“ statt Fehler; Zurücksetzen und Neustart melden den Grund, wenn sie scheitern |
