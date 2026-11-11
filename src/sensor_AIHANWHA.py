@@ -1,3 +1,6 @@
+import socket
+import ssl
+
 import requests
 
 from requests.auth import HTTPDigestAuth
@@ -61,16 +64,40 @@ class AI_HANWHA(Sensor):
 
         return False
 
+    def _https_problem(self):
+        """
+        Check whether the camera completes a TLS handshake on its HTTPS port,
+        before a control command is sent
+
+        A camera that accepts the connection on port 443 but never finishes the
+        handshake makes requests report a timeout of the answer. That cannot be
+        told apart from a command that was sent and not answered, so the
+        handshake is tested separately: nothing has been sent at that point.
+
+        Returns:
+        str: Short reason why HTTPS cannot be used, None if the handshake works
+        """
+        host, _, port = str(self.ip_address).partition(':')
+        try:
+            context = ssl._create_unverified_context()  # same as verify=False for the requests
+            with socket.create_connection((host, int(port or 443)), timeout=REQUEST_TIMEOUT[0]) as sock:
+                with context.wrap_socket(sock, server_hostname=host):
+                    return None
+        except socket.timeout:
+            return "keine TLS-Verbindung (Zeitüberschreitung)"
+        except (OSError, ValueError) as e:
+            return event_log.shorten(f"keine TLS-Verbindung ({type(e).__name__}: {e})", 160)
+
     def _control(self, what, query):
         """
         Send a control command (reset, reboot) to the camera
 
-        HTTPS is tried first. If the camera does not answer on HTTPS at all
-        (no connection), the command is sent over HTTP, which is also what the
-        counter values are read with. The scheme that worked is tried first the
-        next time. An answer from the camera, even an error, is never repeated
-        over the other scheme, and neither is a command whose answer timed out,
-        because the camera may already have executed it.
+        HTTPS is used if the camera completes a TLS handshake, otherwise the
+        command is sent over HTTP, which is also what the counter values are
+        read with. The scheme that worked is tried first the next time.
+        Once a command has been sent, it is never repeated over the other
+        scheme: neither when the camera answered with an error nor when the
+        answer timed out, because the camera may already have executed it.
 
         Args:
         what (str): "Zurücksetzen" or "Neustart", for the messages
@@ -83,6 +110,13 @@ class AI_HANWHA(Sensor):
         schemes = [self._control_scheme] + [s for s in ('https', 'http') if s != self._control_scheme]
         failures = []
         for scheme in schemes:
+            if scheme == 'https':
+                problem = self._https_problem()
+                if problem:
+                    failures.append(f"HTTPS: {problem}")
+                    self.log_info(f"{what} über HTTPS nicht möglich: {problem}")
+                    event_log.detail(f"SensorThread-{self.sensor_id}", f"TLS-Prüfung https://{self.ip_address}/ | FEHLER {problem}")
+                    continue
             url = f"{scheme}://{self.ip_address}/stw-cgi/system.cgi?{query}"
             response = None
             try:
