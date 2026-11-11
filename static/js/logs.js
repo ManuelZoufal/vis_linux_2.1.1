@@ -255,6 +255,48 @@ async function deleteDetailFile(name) {
     fetchDetailLog();
 }
 
+// ── Verbose server log ──
+
+async function fetchServerLog() {
+    const status = document.getElementById('server-log-status');
+    let data;
+    try {
+        const response = await fetch('/api/server_log');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        data = await response.json();
+    } catch (error) {
+        status.textContent = `Status konnte nicht geladen werden (${error.message})`;
+        return;
+    }
+    if (data.always) {
+        status.textContent = 'Dauerhaft eingeschaltet, weil APP_DEBUG in der .env gesetzt ist.';
+    } else if (data.active) {
+        status.textContent = `Eingeschaltet seit ${data.started}, schaltet sich um ${data.until} selbst ab.`;
+    } else {
+        status.textContent = `Ausgeschaltet${data.last_stop_reason ? ' (zuletzt beendet: ' + data.last_stop_reason + ')' : ''}.`;
+    }
+    status.classList.toggle('thread-summary-offline', data.active || data.always);
+    document.getElementById('server-log-controls').style.display = data.always ? 'none' : '';
+    document.getElementById('server-log-stop').style.display = data.active ? '' : 'none';
+}
+
+async function startServerLog() {
+    const response = await fetch('/api/server_log/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minutes: Number(document.getElementById('server-log-minutes').value) })
+    });
+    if (!response.ok) alert('Das ausführliche Server-Log konnte nicht eingeschaltet werden.');
+    fetchServerLog();
+    fetchEvents();
+}
+
+async function stopServerLog() {
+    await fetch('/api/server_log/stop', { method: 'POST' });
+    fetchServerLog();
+    fetchEvents();
+}
+
 // Live thread status, only rendered for administrators
 if (document.getElementById('thread-table')) {
     fetchThreadStatus();
@@ -266,4 +308,6 @@ if (document.getElementById('event-table')) {
     setInterval(fetchEvents, 30000);  // Refresh the event log every 30 seconds
     fetchDetailLog();
     setInterval(fetchDetailLog, 10000);  // Refresh the detail log status every 10 seconds
+    fetchServerLog();
+    setInterval(fetchServerLog, 10000);  // Refresh the server log status every 10 seconds
 }

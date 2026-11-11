@@ -8,6 +8,7 @@ from src.config_store import load_config, save_config, with_config_lock
 from src import thread_status
 from src import certificate
 from src import event_log
+from src import server_log
 
 from flask import jsonify, session, request, send_file, current_app
 from datetime import datetime, timezone, timedelta
@@ -641,6 +642,80 @@ def detail_log_file(name):
             return jsonify({'status': 'error', 'message': 'Die Datei wird gerade geschrieben'}), 400
         return jsonify({'status': 'success'}), 200
     return send_file(os.path.abspath(path), as_attachment=True, mimetype='text/plain; charset=utf-8', download_name=name)
+
+
+SERVER_LOG_MINUTES = (15, 60, 360, 1440)
+
+
+# /api/server_log
+@api_bp.route('/server_log')
+def get_server_log():
+    """
+    Get the state of the verbose server log
+    ---
+    get:
+      responses:
+        200:
+          description: State retrieved successfully
+        403:
+          description: Unauthorized
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to view the server log state'}), 403
+    return jsonify(server_log.status()), 200
+
+
+# /api/server_log/start
+@api_bp.route('/server_log/start', methods=['POST'])
+def start_server_log():
+    """
+    Switch the verbose server log on for a limited time
+    ---
+    post:
+      description: Raises the log level without a restart. Does not enable the Werkzeug debugger
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                minutes:
+                  type: integer
+                  description: 15, 60, 360 or 1440
+      responses:
+        200:
+          description: Verbose server log switched on
+        400:
+          description: Invalid duration
+        403:
+          description: Unauthorized
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to change the server log'}), 403
+    minutes = (request.get_json(silent=True) or {}).get('minutes')
+    if minutes not in SERVER_LOG_MINUTES:
+        return jsonify({'status': 'error', 'message': 'Ungültige Dauer'}), 400
+    until = server_log.start(minutes * 60)
+    log_change(f"Verbose server log switched on for {minutes} minutes by user id {session.get('user_id')}")
+    return jsonify({'status': 'success', 'until': until}), 200
+
+
+# /api/server_log/stop
+@api_bp.route('/server_log/stop', methods=['POST'])
+def stop_server_log():
+    """
+    Switch the verbose server log off
+    ---
+    post:
+      responses:
+        200:
+          description: Verbose server log switched off (or was not running)
+        403:
+          description: Unauthorized
+    """
+    if not _is_admin():
+        return jsonify({'error': 'Unauthorized to change the server log'}), 403
+    return jsonify({'status': 'success', 'stopped': server_log.stop()}), 200
 
 
 # /api/export_logs

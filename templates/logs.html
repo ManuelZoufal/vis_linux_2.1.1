@@ -121,6 +121,27 @@
         </tbody>
     </table>
 </div>
+
+<div class="thread-section">
+    <h2>Ausführliches Server-Log</h2>
+    <p class="thread-summary">
+        Schreibt für eine begrenzte Zeit zusätzlich jede Sensorabfrage, jede Webanfrage und die Meldungen der Bibliotheken
+        ins Server-Log, ohne Neustart. Im Normalbetrieb stehen dort nur Start, Warnungen und Fehler.
+    </p>
+    <p id="server-log-status" class="thread-summary"></p>
+    <div class="log-controls" id="server-log-controls">
+        <label>Dauer
+            <select id="server-log-minutes">
+                <option value="15" selected>15 Minuten</option>
+                <option value="60">1 Stunde</option>
+                <option value="360">6 Stunden</option>
+                <option value="1440">24 Stunden</option>
+            </select>
+        </label>
+        <button class="button button-primary" onclick="startServerLog()">Einschalten</button>
+        <button class="button button-danger" id="server-log-stop" onclick="stopServerLog()">Ausschalten</button>
+    </div>
+</div>
 {% endif %}
 
 <script src="{{ url_for('static', filename='js/logs.js') }}"></script>

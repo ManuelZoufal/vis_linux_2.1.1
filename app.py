@@ -31,6 +31,9 @@ if not APP_DEBUG:
     logging.getLogger('werkzeug').setLevel(logging.WARNING)
 logging.info(f"[VIS-START] Version {APP_VERSION} | NO_PROXY = {os.environ.get('NO_PROXY')}")
 
+from src import server_log
+server_log.init(APP_DEBUG)  # remembers these levels; the verbose log can be switched on for a limited time
+
 # Without these values the app would run with publicly known defaults
 missing = [name for name in ("APP_SECRET_KEY", "DEFAULT_ADMIN_PASSWORD") if not os.environ.get(name)]
 if missing:

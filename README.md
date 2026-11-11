@@ -160,6 +160,10 @@ Administratoren finden unter „Logs“:
   solange sie andauert, die Erholung mit Dauer des Ausfalls sowie jeder ausgeführte Zeitplan mit dem Grund je
   fehlgeschlagenem Sensor. Filter nach Zeitraum und Quelle, Export. Erreicht die Datei `LOG_MAX_MB`, wird sie zu
   `events.log.1` und eine neue begonnen; es liegen also höchstens zwei Dateien vor.
+- **Ausführliches Server-Log:** schreibt für 15 Minuten bis 24 Stunden zusätzlich jede Sensorabfrage, jede Webanfrage
+  und die Meldungen der Bibliotheken ins Server-Log, ohne Neustart, und schaltet sich danach selbst ab. Es ändert nur die
+  Protokollstufe; der Werkzeug-Debugger bleibt an `APP_DEBUG` in der `.env` gebunden und lässt sich nicht über die
+  Oberfläche einschalten.
 - **Detail-Protokoll** (`logs/detail_<Datum>_<Uhrzeit>.log`): für 15 Minuten bis 24 Stunden jede Anfrage an Sensoren
   und Navigator mit Dauer, Status und gekürzter Antwort. Es endet nach Ablauf der Zeit, beim Erreichen von `LOG_MAX_MB`
   oder bei einem Neustart. Passwörter, Token und Antworten auf Anmeldungen werden nicht geschrieben.
@@ -171,7 +175,7 @@ Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung mehr und kann entfernt wer
 
 | Version | Änderungen |
 |---|---|
-| 2.1.19 | Weniger Protokollvolumen: erfolgreiche Abfragen, Uploads und die Zeilen des Webservers je Anfrage stehen nur noch im Debug-Modus im Server-Log; das Änderungsprotokoll ist wie die anderen Protokolle auf `LOG_MAX_MB` begrenzt, und die Seite „Logs“ lädt nur die neuesten 500 Einträge (neueste zuerst) |
+| 2.1.19 | Weniger Protokollvolumen: erfolgreiche Abfragen, Uploads und die Zeilen des Webservers je Anfrage stehen nur noch im Debug-Modus im Server-Log; das Änderungsprotokoll ist wie die anderen Protokolle auf `LOG_MAX_MB` begrenzt, und die Seite „Logs“ lädt nur die neuesten 500 Einträge (neueste zuerst). Das ausführliche Server-Log lässt sich unter „Logs“ für 15 Minuten bis 24 Stunden ohne Neustart einschalten |
 | 2.1.18 | Hanwha-Kameras: Der Ausweichweg über HTTP greift jetzt auch, wenn die Kamera die Verbindung auf Port 443 annimmt, aber den TLS-Handshake nicht abschließt; die TLS-Fähigkeit wird vor dem Senden eines Steuerbefehls geprüft |
 | 2.1.17 | Schalter „Zählung aktiv“ je Sensor (`"counting": false` in `config.json`) für Geräte ohne Zählfunktion, z. B. Heatmap-Kameras: keine Abfrage, kein Zurücksetzen, kein Upload zu Navigator, kein Beitrag zur Belegung; Neustart bleibt möglich; im Thread-Status „Keine Zählung“ statt Fehler; Zurücksetzen und Neustart melden den Grund, wenn sie scheitern |
 | 2.1.16 | Hanwha-Kameras: Zurücksetzen und Neustart gehen über HTTP, wenn die Kamera auf HTTPS nicht antwortet; der funktionierende Weg wird gemerkt und im Ereignisprotokoll vermerkt |
