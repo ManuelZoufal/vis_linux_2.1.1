@@ -97,18 +97,72 @@ def test_display_page_can_be_shown_inside_the_tile_view(anonymous):
     assert 'frame-ancestors' not in response.headers.get('Content-Security-Policy', '')
 
 
-def test_upload_never_replaces_an_existing_file():
-    """A user with the role "Benutzer" could replace the display image of a group by using its file name."""
+def upload(client, name, content=b'bild'):
     import io
+    return client.post('/visualize/configure', data={'file': (io.BytesIO(content), name)}, content_type='multipart/form-data')
+
+
+def background(client):
+    return client.get('/visualize/get_background').get_json()
+
+
+def test_uploaded_image_becomes_the_background_of_the_display(anonymous):
+    uploads = WORK / 'static' / 'uploads'
+    assert background(anonymous) == {'url': None, 'opacity': 20}
+    client = client_for('Benutzer')
+    assert upload(client, 'Mein Foto.PNG', b'eins').status_code == 302
+    assert (uploads / 'background.png').read_bytes() == b'eins'
+    shown = background(anonymous)
+    assert shown['url'].startswith('/static/uploads/background.png?v=') and shown['opacity'] == 20
+    page = client.get('/visualize/configure').get_data(as_text=True)
+    assert 'Das Hintergrundbild wurde gespeichert.' in page and shown['url'] in page
+    # A new image replaces the old one, also with another file type; the opacity is kept
+    assert client.post('/visualize/background', data={'action': 'save', 'opacity': '35'}).status_code == 302
+    upload(client, 'neu.jpg', b'zwei')
+    assert not (uploads / 'background.png').exists() and (uploads / 'background.jpg').read_bytes() == b'zwei'
+    assert background(anonymous)['url'].startswith('/static/uploads/background.jpg?v=') and background(anonymous)['opacity'] == 35
+    # Removing deletes the file
+    assert client.post('/visualize/background', data={'action': 'remove'}).status_code == 302
+    assert not (uploads / 'background.jpg').exists() and background(anonymous) == {'url': None, 'opacity': 35}
+    assert 'id="background-image"' in anonymous.get('/visualize/display?group_id=1').get_data(as_text=True)
+
+
+def test_upload_cannot_replace_other_files_and_only_takes_images(anonymous):
+    """A user with the role "Benutzer" could replace the display image of a group by using its file name."""
     uploads = WORK / 'static' / 'uploads'
     uploads.mkdir(parents=True, exist_ok=True)
     (uploads / 'group_1_img_0.png').write_bytes(b'Bild der Gruppe')
     client = client_for('Benutzer')
-    for expected in ('group_1_img_0_1.png', 'group_1_img_0_2.png'):
-        response = client.post('/visualize/configure', data={'file': (io.BytesIO(b'neu'), 'group_1_img_0.png')},
-                               content_type='multipart/form-data')
-        assert response.status_code == 302
-        assert (uploads / expected).read_bytes() == b'neu'
+    upload(client, 'group_1_img_0.png', b'neu')
+    upload(client, '../../config.png', b'neu')
     assert (uploads / 'group_1_img_0.png').read_bytes() == b'Bild der Gruppe'
-    client.post('/visualize/configure', data={'file': (io.BytesIO(b'frei'), 'anderes.png')}, content_type='multipart/form-data')
-    assert (uploads / 'anderes.png').read_bytes() == b'frei', "a free name is kept"
+    assert sorted(path.name for path in uploads.iterdir()) == ['background.json', 'background.png', 'group_1_img_0.png']
+    response = upload(client, 'skript.html', b'<script>')
+    assert 'Dateityp nicht erlaubt' in client.get('/visualize/configure').get_data(as_text=True) or response.status_code == 302
+    assert not (uploads / 'background.html').exists() and background(anonymous)['url'].startswith('/static/uploads/background.png')
+
+
+def test_opacity_must_be_within_the_range(anonymous):
+    client = client_for('Benutzer')
+    upload(client, 'bild.gif')
+    for value in ('4', '101', 'viel', ''):
+        client.post('/visualize/background', data={'action': 'save', 'opacity': value})
+        assert background(anonymous)['opacity'] == 20, value
+    client.post('/visualize/background', data={'action': 'save', 'opacity': '100'})
+    assert background(anonymous)['opacity'] == 100
+
+
+def test_background_can_only_be_changed_after_login(anonymous):
+    assert upload(anonymous, 'bild.png').status_code == 302
+    assert anonymous.post('/visualize/background', data={'action': 'remove'}).status_code == 302
+    assert not (WORK / 'static' / 'uploads' / 'background.png').exists()
+    assert client_for('Betrachter').post('/visualize/background', data={'action': 'save', 'opacity': '50'}).status_code in (302, 403)
+    assert background(anonymous) == {'url': None, 'opacity': 20}
+
+
+def test_damaged_settings_file_gives_no_background(anonymous):
+    uploads = WORK / 'static' / 'uploads'
+    uploads.mkdir(parents=True, exist_ok=True)
+    for content in ('kein json', '{"file": "../../config.json", "opacity": 50}', '{"file": "group_1_img_0.png", "opacity": "x"}', '[1]'):
+        (uploads / 'background.json').write_text(content)
+        assert background(anonymous)['url'] is None, content

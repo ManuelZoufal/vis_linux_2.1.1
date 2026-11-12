@@ -30,6 +30,19 @@ body {
     box-shadow: 0 0 20px rgba(0,0,0,0.15);
     padding: 10px;
     overflow: hidden;
+    position: relative;  /* own stacking context, so the background image lies above the */
+    z-index: 0;          /* white of the card and below everything else */
+}
+
+/* Background image of the display: fills the card, pale behind the content */
+.background-image {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    pointer-events: none;
 }
 
 

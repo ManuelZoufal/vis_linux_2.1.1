@@ -4,6 +4,7 @@ from functools import wraps
 from flask import session, redirect, url_for, jsonify, request
 
 import hashlib
+import json
 import os
 import threading
 
@@ -156,6 +157,45 @@ def allowed_file(filename):
     filename (str): Name of the file
     """
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+BACKGROUND_SETTINGS_FILE = 'static/uploads/background.json'
+BACKGROUND_NAME = 'background'            # the image is stored as background.<extension>
+BACKGROUND_DEFAULT_OPACITY = 20           # percent
+BACKGROUND_OPACITY_RANGE = (5, 100)
+
+
+def get_background():
+    """
+    Background image of the occupancy display
+
+    Returns:
+    dict: "file" (name in the upload folder, None without image), "opacity" in percent and
+          "url" (None without image; it changes with the file, so browsers load a new image)
+    """
+    settings = {}
+    try:
+        with open(BACKGROUND_SETTINGS_FILE, 'r', encoding='utf-8') as file:
+            settings = json.load(file)
+    except (OSError, ValueError):
+        pass
+    name = settings.get('file') if isinstance(settings, dict) else None
+    opacity = settings.get('opacity') if isinstance(settings, dict) else None
+    if not isinstance(opacity, int) or not BACKGROUND_OPACITY_RANGE[0] <= opacity <= BACKGROUND_OPACITY_RANGE[1]:
+        opacity = BACKGROUND_DEFAULT_OPACITY
+    path = os.path.join(UPLOAD_FOLDER, name) if isinstance(name, str) and os.path.basename(name) == name else None
+    if not path or not name.startswith(BACKGROUND_NAME + '.') or not os.path.isfile(path):
+        return {'file': None, 'opacity': opacity, 'url': None}
+    return {'file': name, 'opacity': opacity, 'url': f"/static/uploads/{name}?v={int(os.path.getmtime(path))}"}
+
+
+def save_background(name, opacity):
+    """Store the name of the background image (None: no image) and its opacity in percent"""
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    temporary = BACKGROUND_SETTINGS_FILE + '.tmp'
+    with open(temporary, 'w', encoding='utf-8') as file:
+        json.dump({'file': name, 'opacity': opacity}, file)
+    os.replace(temporary, BACKGROUND_SETTINGS_FILE)
+
 
 def get_marquee_text():
     """
