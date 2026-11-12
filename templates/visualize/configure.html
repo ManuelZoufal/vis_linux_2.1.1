@@ -3,44 +3,82 @@
 {% block title %}Visualisierung konfigurieren{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_styles.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/configure.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/marquee.css') }}">
 
-<div class="admin-section">
+<div class="configure-page">
     <h2>Visualisierung konfigurieren</h2>
+    <p class="configure-intro">Die Einstellungen gelten für alle Belegungsanzeigen und erscheinen dort nach wenigen Sekunden.</p>
     {% include 'admin/_flash.html' %}
 
-    <h3>Hintergrundbild</h3>
-    <p>Das Bild liegt auf allen Belegungsanzeigen blass hinter dem Inhalt. Eine Änderung erscheint dort nach wenigen Sekunden.</p>
-    {% if background.url %}
-    <div class="background-preview">
-        <img src="{{ background.url }}" alt="Hintergrundbild" style="opacity: {{ background.opacity / 100 }};">
-    </div>
-    <form method="POST" action="{{ url_for('visualize.update_background') }}" class="admin-form">
-        <div class="form-group">
-            <label for="opacity">Deckkraft in Prozent ({{ opacity_range[0] }} = kaum sichtbar, {{ opacity_range[1] }} = volles Bild):</label>
-            <input type="number" id="opacity" name="opacity" min="{{ opacity_range[0] }}" max="{{ opacity_range[1] }}" step="1" value="{{ background.opacity }}" required>
-        </div>
-        <button type="submit" name="action" value="save" class="button button-primary">Deckkraft speichern</button>
-        <button type="submit" name="action" value="remove" class="button button-danger" formnovalidate>Bild entfernen</button>
-    </form>
-    {% else %}
-    <p><em>Kein Hintergrundbild hinterlegt.</em></p>
-    {% endif %}
-    <form method="POST" enctype="multipart/form-data" class="admin-form">
-        <div class="form-group">
-            <label for="file">{{ 'Bild ersetzen' if background.url else 'Hintergrundbild hochladen' }} (png, jpg, jpeg, gif):</label>
-            <input type="file" id="file" name="file" accept=".png,.jpg,.jpeg,.gif" required>
-        </div>
-        <button type="submit" class="button button-primary">Hochladen</button>
-    </form>
+    <div class="configure-grid">
+        <section class="configure-card">
+            <h3>Hintergrundbild</h3>
+            <p class="configure-hint">Das Bild liegt blass hinter dem Inhalt der Anzeige.</p>
 
-    <h3>Laufschrift</h3>
-    <form method="POST" action="{{ url_for('visualize.update_marquee') }}" class="admin-form">
-        <div class="form-group">
-            <label for="marquee_text">Laufschrift Text:</label>
-            <input type="text" id="marquee_text" name="marquee_text" value="{{ marquee_text }}" required>
-        </div>
-        <button type="submit" class="button button-primary">Text aktualisieren</button>
-    </form>
+            <div class="display-preview" id="display-preview">
+                {% if background.url %}
+                <div class="display-preview-image" id="preview-image"
+                     style="background-image: url('{{ background.url }}'); opacity: {{ background.opacity / 100 }};"></div>
+                {% endif %}
+                <div class="display-preview-content">
+                    <div class="display-preview-title">Willkommen</div>
+                    <div class="display-preview-body">
+                        <div class="display-preview-ring">42%</div>
+                        <div class="display-preview-light"><span></span><span class="on"></span></div>
+                    </div>
+                </div>
+                {% if not background.url %}
+                <div class="display-preview-empty">Kein Hintergrundbild hinterlegt</div>
+                {% endif %}
+            </div>
+            <p class="configure-caption">Vorschau mit Beispielinhalt</p>
+
+            {% if background.url %}
+            <form method="POST" action="{{ url_for('visualize.update_background') }}" class="configure-form">
+                <label for="opacity">Deckkraft: <output id="opacity-value">{{ background.opacity }}</output> %</label>
+                <div class="configure-slider">
+                    <span>blass</span>
+                    <input type="range" id="opacity" name="opacity" min="{{ opacity_range[0] }}" max="{{ opacity_range[1] }}" step="1" value="{{ background.opacity }}">
+                    <span>kräftig</span>
+                </div>
+                <div class="configure-actions">
+                    <button type="submit" name="action" value="save" class="button button-primary">Deckkraft speichern</button>
+                    <button type="submit" name="action" value="remove" class="button button-danger">Bild entfernen</button>
+                </div>
+            </form>
+            {% endif %}
+
+            <form method="POST" enctype="multipart/form-data" class="configure-form configure-upload">
+                <label for="file">{{ 'Bild ersetzen' if background.url else 'Bild hochladen' }}</label>
+                <input type="file" id="file" name="file" accept=".png,.jpg,.jpeg,.gif" required>
+                <p class="configure-hint">Erlaubt sind png, jpg, jpeg und gif. Querformat passt am besten.</p>
+                <div class="configure-actions">
+                    <button type="submit" class="button button-primary">Hochladen</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="configure-card">
+            <h3>Laufschrift</h3>
+            <p class="configure-hint">Der Text läuft am unteren Rand der Anzeige und wiederholt sich fortlaufend.</p>
+
+            <div class="marquee-preview">
+                <div id="marquee-preview" class="marquee" data-initial="{{ marquee_text }}"></div>
+            </div>
+            <p class="configure-caption">Vorschau</p>
+
+            <form method="POST" action="{{ url_for('visualize.update_marquee') }}" class="configure-form">
+                <label for="marquee_text">Text</label>
+                <input type="text" id="marquee_text" name="marquee_text" value="{{ marquee_text }}" required>
+                <div class="configure-actions">
+                    <button type="submit" class="button button-primary">Text speichern</button>
+                </div>
+            </form>
+        </section>
+    </div>
 </div>
+
+<script src="{{ url_for('static', filename='js/marquee.js') }}"></script>
+<script src="{{ url_for('static', filename='js/configure.js') }}"></script>
 {% endblock %}

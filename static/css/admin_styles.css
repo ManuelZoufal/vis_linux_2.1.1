@@ -209,14 +209,3 @@ li {
     background-color: #dc3545;
 }
 
-
-/* Preview of the display background on the configuration page */
-.background-preview {
-    max-width: 480px;
-    margin: 10px auto;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    background-color: #fff;
-    overflow: hidden;
-}
-.background-preview img { display: block; width: 100%; }

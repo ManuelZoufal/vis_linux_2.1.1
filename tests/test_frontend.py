@@ -166,3 +166,27 @@ def test_damaged_settings_file_gives_no_background(anonymous):
     for content in ('kein json', '{"file": "../../config.json", "opacity": 50}', '{"file": "group_1_img_0.png", "opacity": "x"}', '[1]'):
         (uploads / 'background.json').write_text(content)
         assert background(anonymous)['url'] is None, content
+
+
+def test_ticker_repeats_instead_of_using_the_marquee_element(admin, anonymous):
+    """The <marquee> element shows a text once and starts again only after it has left the screen."""
+    admin.post('/visualize/update_marquee', data={'marquee_text': 'Heute <b>Pasta</b> & mehr'})
+    page = anonymous.get('/visualize/display?group_id=1').get_data(as_text=True)
+    assert '<marquee' not in page
+    assert 'class="marquee" data-initial="Heute &lt;b&gt;Pasta&lt;/b&gt; &amp; mehr"' in page
+    assert 'js/marquee.js' in page and 'css/marquee.css' in page
+    script = (ROOT / 'static/js/marquee.js').read_text(encoding='utf-8')
+    assert 'cloneNode(true)' in script and 'textContent = text' in script
+    assert "const MARQUEE_SEPARATOR = '***';" in script, "<text> *** <text> *** <text>"
+
+
+def test_configuration_page_shows_previews_and_confirms_saving(admin):
+    page = admin.get('/visualize/configure').get_data(as_text=True)
+    for expected in ('id="display-preview"', 'id="marquee-preview"', 'Kein Hintergrundbild hinterlegt', 'js/configure.js'):
+        assert expected in page
+    assert 'id="opacity"' not in page, "no opacity control without an image"
+    upload(admin, 'bild.png')
+    page = admin.get('/visualize/configure').get_data(as_text=True)
+    assert 'type="range" id="opacity"' in page and 'id="preview-image"' in page and 'Bild entfernen' in page
+    saved = admin.post('/visualize/update_marquee', data={'marquee_text': 'Neu'}).get_data(as_text=True)
+    assert 'Die Laufschrift wurde gespeichert.' in saved and 'data-initial="Neu"' in saved

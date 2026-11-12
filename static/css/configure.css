@@ -1,0 +1,120 @@
+@import url('base.css');
+
+/* Page "Visualisierung konfigurieren" */
+.configure-page h2 { text-align: center; margin-bottom: 6px; }
+.configure-intro { text-align: center; color: #555; margin: 0 0 20px; }
+
+.configure-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 24px;
+    align-items: start;
+}
+
+.configure-card {
+    background-color: #fff;
+    border: 1px solid #e2e2ea;
+    border-top: 4px solid #009999;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    padding: 20px 24px 24px;
+}
+.configure-card h3 { margin: 0 0 4px; font-size: 1.3em; }
+.configure-hint { color: #666; font-size: 0.92em; margin: 0 0 14px; }
+.configure-caption { color: #888; font-size: 0.85em; text-align: center; margin: 6px 0 18px; }
+
+.configure-form { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.configure-form label { font-weight: bold; color: #333; }
+.configure-form input[type="text"],
+.configure-form input[type="file"] {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 1em;
+    width: 100%;
+    box-sizing: border-box;
+    background-color: #fff;
+}
+.configure-form input[type="text"]:focus { outline: 2px solid #009999; border-color: #009999; }
+.configure-upload { margin-top: 20px; padding-top: 18px; border-top: 1px solid #e2e2ea; }
+.configure-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.configure-actions .button { margin: 0; }
+
+.configure-slider { display: flex; align-items: center; gap: 10px; color: #666; font-size: 0.9em; }
+.configure-slider input[type="range"] { flex: 1; accent-color: #009999; }
+
+/* Miniature of the display, to judge the image and its opacity */
+.display-preview {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #fff;
+    overflow: hidden;
+}
+.display-preview-image {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+}
+.display-preview-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4% 6%;
+}
+.display-preview-title { font-weight: bold; font-size: 1.5em; color: #333; }
+.display-preview-body { flex: 1; display: flex; align-items: center; justify-content: space-evenly; width: 100%; }
+.display-preview-ring {
+    width: 34%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 12px solid #00cc00;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.4em;
+    color: #00b000;
+    box-sizing: border-box;
+}
+.display-preview-light {
+    height: 70%;
+    aspect-ratio: 1 / 1.9;
+    background-color: #1c1c1c;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    align-items: center;
+}
+.display-preview-light span { width: 62%; aspect-ratio: 1; border-radius: 50%; background-color: #eee; }
+.display-preview-light span.on { background-color: #00dd00; }
+.display-preview-empty {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 6%;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+}
+
+.marquee-preview {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 12px 0;
+    font-size: 1.4em;
+    background-color: #fff;
+}
+
+/* Messages after saving */
+.flash-messages { margin-bottom: 20px; }
+.flash-message { padding: 10px 14px; border-radius: 5px; margin-bottom: 10px; }
+.flash-message.success { background-color: #dff0d8; color: #3c763d; }
+.flash-message.error { background-color: #f2dede; color: #a94442; }
+.flash-message.info { background-color: #d9edf7; color: #31708f; }
+.flash-message.warning { background-color: #fcf8e3; color: #8a6d3b; }

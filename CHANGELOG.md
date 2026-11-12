@@ -3,6 +3,11 @@
 Die Anwendung zeigt diese Datei unter „Was ist neu“ an (Klick auf die Versionsnummer in der Navigationsleiste).
 Format: eine Überschrift `## <Version> – <Datum>` je Version, darunter eine Zeile mit `- ` je Änderung.
 
+## 2.1.26 – 2026-11-12
+
+- Laufschrift der Belegungsanzeige wiederholt sich fortlaufend, getrennt durch `***`, statt erst vollständig durchzulaufen
+- Seite „Visualisierung konfigurieren“ neu gestaltet: zwei Karten für Hintergrundbild und Laufschrift, Vorschau der Anzeige mit Schieberegler für die Deckkraft, Vorschau der Laufschrift beim Tippen
+
 ## 2.1.25 – 2026-11-12
 
 - Hintergrundbild der Belegungsanzeige: Das unter „Visualisierung konfigurieren“ hochgeladene Bild liegt jetzt blass hinter dem Inhalt aller Anzeigen; die Deckkraft ist einstellbar (Standard 20 %), das Bild lässt sich ersetzen und entfernen

@@ -101,7 +101,7 @@ function updateMarqueeText() {
     xhr.onreadystatechange = function() {
         if (xhr.readyState === 4 && xhr.status === 200) {
             var response = JSON.parse(xhr.responseText);
-            document.getElementById('marquee-text').innerText = response.marquee_text;
+            setMarquee(document.getElementById('marquee-text'), response.marquee_text);
         }
     };
     xhr.send();
@@ -215,5 +215,8 @@ async function init() {
     }
 }
 
+const marqueeElement = document.getElementById('marquee-text');
+setMarquee(marqueeElement, marqueeElement.dataset.initial);
+window.addEventListener('resize', () => setMarquee(marqueeElement, marqueeElement.dataset.marqueeText || marqueeElement.dataset.initial));
 updateBackground();  // independent of the occupancy data, so it also shows in maintenance mode
 init();
