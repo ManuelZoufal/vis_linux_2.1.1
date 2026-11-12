@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/index_styles.css') }}">
 </head>
 <body>
+    <div id="fault-indicator" class="fault-indicator" style="display: none;" title="Störung: Mindestens ein Sensor dieser Gruppe liefert seit längerem keine Werte"></div>
     <div class="visualization-wrapper">
         <h1 id="greeting">Belegungsanzeige</h1>
         <div id="visualization-section" class="main-layout" style="display:none;">

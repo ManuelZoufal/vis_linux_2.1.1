@@ -1,14 +1,12 @@
 async function fetchLogs() {
     const response = await fetch('/api/logs');
     const data = await response.json();
-    const logsTable = document.getElementById('logs-table').getElementsByTagName('tbody')[0];
-    logsTable.replaceChildren();
-    data.logs.forEach(log => {
+    logsPager.setRows(data.logs.map(log => {
         const tr = document.createElement('tr');
         tr.appendChild(createCell(log.timestamp));
         tr.appendChild(createCell(log.message));
-        logsTable.appendChild(tr);
-    });
+        return tr;
+    }));
     document.getElementById('logs-summary').textContent = data.truncated
         ? `Die neuesten ${data.logs.length} Einträge, neueste zuerst. Der Export enthält alle.`
         : `${data.logs.length} Einträge, neueste zuerst.`;
@@ -83,35 +81,6 @@ async function fetchThreadStatus() {
     const idleCount = data.threads.filter(thread => thread.state === 'idle').length;
     setThreadSummary(`${okCount} von ${data.threads.length - idleCount} Threads OK`
         + (idleCount ? `, ${idleCount} ohne Zählung` : '') + ` – Stand ${data.server_time}`, false);
-
-    const certificate = document.getElementById('certificate-status');
-    if (certificate && data.certificate) {
-        certificate.textContent = data.certificate.message;
-        certificate.classList.toggle('thread-summary-offline', data.certificate.state !== 'ok');
-        document.getElementById('certificate-renewal').textContent = data.certificate.renew_message || '';
-    }
-}
-
-async function renewCertificate() {
-    const method = document.getElementById('certificate-renewal').textContent.includes('selbstsigniert')
-        ? 'Das neue Zertifikat ist selbstsigniert: Browser und Anzeigegeräte zeigen eine Warnung, bis es dort als vertrauenswürdig hinterlegt ist.'
-        : 'Das neue Zertifikat wird von der eigenen CA ausgestellt.';
-    if (!confirm('Jetzt einen neuen Schlüssel und ein neues Zertifikat erstellen und sofort verwenden?\n\n'
-        + method + '\nDie bisherigen Dateien bleiben als *.alt erhalten.')) {
-        return;
-    }
-    const button = document.getElementById('certificate-renew-button');
-    button.disabled = true;
-    try {
-        const response = await fetch('/api/certificate/renew', { method: 'POST' });
-        const data = await response.json();
-        alert(response.ok ? 'Zertifikat erneuert. ' + data.certificate.message : (data.error || 'Fehler ' + response.status));
-    } catch (error) {
-        // The connection of this very request can be affected by the change of the certificate
-        alert('Keine Antwort erhalten. Bitte die Seite neu laden und den Zertifikatsstatus prüfen.');
-    }
-    button.disabled = false;
-    fetchThreadStatus();
 }
 
 function exportLogs() {
@@ -121,6 +90,9 @@ function exportLogs() {
 function exportThreadStatus() {
     window.location.href = '/api/thread_status/export';
 }
+
+const logsPager = createPager('logs-table', 'logs-pager');
+const eventPager = document.getElementById('event-table') ? createPager('event-table', 'event-pager') : null;
 
 fetchLogs();
 setInterval(fetchLogs, 10000);  // Refresh logs every 10 seconds
@@ -167,9 +139,7 @@ async function fetchEvents() {
         });
     }
 
-    const tbody = document.getElementById('event-table').getElementsByTagName('tbody')[0];
-    tbody.replaceChildren();
-    data.events.forEach(entry => {
+    eventPager.setRows(data.events.map(entry => {
         const tr = document.createElement('tr');
         tr.appendChild(createCell(entry.ts));
         const kindCell = document.createElement('td');
@@ -180,11 +150,17 @@ async function fetchEvents() {
         tr.appendChild(kindCell);
         tr.appendChild(createCell(entry.label));
         tr.appendChild(createCell(entry.message));
-        tbody.appendChild(tr);
-    });
+        return tr;
+    }));
     summary.textContent = data.events.length
         ? `${data.events.length} Ereignisse${data.truncated ? ' (nur die neuesten werden angezeigt, der Export enthält alle)' : ''}`
         : 'Keine Ereignisse im gewählten Zeitraum.';
+}
+
+// A changed filter starts on the first page again; the automatic refresh keeps the current page
+function refreshEvents() {
+    eventPager.firstPage();
+    fetchEvents();
 }
 
 function exportEvents() {
@@ -278,48 +254,6 @@ async function deleteDetailFile(name) {
     fetchDetailLog();
 }
 
-// ── Verbose server log ──
-
-async function fetchServerLog() {
-    const status = document.getElementById('server-log-status');
-    let data;
-    try {
-        const response = await fetch('/api/server_log');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        data = await response.json();
-    } catch (error) {
-        status.textContent = `Status konnte nicht geladen werden (${error.message})`;
-        return;
-    }
-    if (data.always) {
-        status.textContent = 'Dauerhaft eingeschaltet, weil APP_DEBUG in der .env gesetzt ist.';
-    } else if (data.active) {
-        status.textContent = `Eingeschaltet seit ${data.started}, schaltet sich um ${data.until} selbst ab.`;
-    } else {
-        status.textContent = `Ausgeschaltet${data.last_stop_reason ? ' (zuletzt beendet: ' + data.last_stop_reason + ')' : ''}.`;
-    }
-    status.classList.toggle('thread-summary-offline', data.active || data.always);
-    document.getElementById('server-log-controls').style.display = data.always ? 'none' : '';
-    document.getElementById('server-log-stop').style.display = data.active ? '' : 'none';
-}
-
-async function startServerLog() {
-    const response = await fetch('/api/server_log/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ minutes: Number(document.getElementById('server-log-minutes').value) })
-    });
-    if (!response.ok) alert('Das ausführliche Server-Log konnte nicht eingeschaltet werden.');
-    fetchServerLog();
-    fetchEvents();
-}
-
-async function stopServerLog() {
-    await fetch('/api/server_log/stop', { method: 'POST' });
-    fetchServerLog();
-    fetchEvents();
-}
-
 // Live thread status, only rendered for administrators
 if (document.getElementById('thread-table')) {
     fetchThreadStatus();
@@ -331,6 +265,19 @@ if (document.getElementById('event-table')) {
     setInterval(fetchEvents, 30000);  // Refresh the event log every 30 seconds
     fetchDetailLog();
     setInterval(fetchDetailLog, 10000);  // Refresh the detail log status every 10 seconds
-    fetchServerLog();
-    setInterval(fetchServerLog, 10000);  // Refresh the server log status every 10 seconds
+}
+
+// ── Tabs (administrators; other users only see the change log) ──
+
+function showTab(name) {
+    const buttons = document.querySelectorAll('#log-tabs .tab-button');
+    if (!Array.from(buttons).some(button => button.dataset.tab === name)) name = 'status';
+    buttons.forEach(button => button.classList.toggle('tab-active', button.dataset.tab === name));
+    document.querySelectorAll('.tab-panel').forEach(panel => { panel.style.display = panel.id === 'tab-' + name ? '' : 'none'; });
+    history.replaceState(null, '', '#' + name);
+}
+
+if (document.getElementById('log-tabs')) {
+    document.querySelectorAll('#log-tabs .tab-button').forEach(button => button.addEventListener('click', () => showTab(button.dataset.tab)));
+    showTab(location.hash.slice(1));
 }

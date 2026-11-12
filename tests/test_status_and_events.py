@@ -1,5 +1,7 @@
 """Thread status, short error texts, event log and detail log"""
+import datetime
 import os
+import threading
 import time
 
 import pytest
@@ -223,3 +225,64 @@ def test_event_log_through_the_api(admin):
     assert len(admin.get('/api/events?hours=1&source=SensorThread-2').get_json()['events']) == 1
     export = admin.get('/api/events/export?hours=1').get_data(as_text=True)
     assert 'VIS Ereignisprotokoll' in export and 'Abfrage fehlgeschlagen: HTTP 500' in export
+
+
+# ---- Fault indicator of the display ------------------------------------------
+
+def fail_since(name, seconds):
+    """Let a sensor thread fail and move the start of the failure into the past"""
+    thread_status.register(name, name, 7)
+
+    def body():
+        thread_status.bind()
+        thread_status.report_error('Abfrage fehlgeschlagen: Zeitüberschreitung')
+    run_in_thread(name, body)
+    thread_status._entries[name]['streak_started'] -= datetime.timedelta(seconds=seconds)
+    # The helper thread has ended; a real sensor thread keeps running
+    thread_status._entries[name]['thread'] = threading.current_thread()
+    thread_status._entries[name]['ended'] = False
+
+
+def faults(client):
+    return {group['group_id']: group['fault'] for group in client.get('/api/get_data').get_json()['groups']}
+
+
+def test_display_is_told_about_a_sensor_that_fails_for_a_while(anonymous):
+    assert faults(anonymous) == {'1': False, '2': False, '3': False}
+    fail_since('SensorThread-2', 60)       # sensor 2 belongs to group 1; one minute is not "for a while"
+    assert faults(anonymous) == {'1': False, '2': False, '3': False}
+    fail_since('SensorThread-2', 6 * 60)   # default limit: 5 minutes
+    assert faults(anonymous) == {'1': True, '2': False, '3': False}
+
+
+def test_fault_ends_with_the_first_successful_query(anonymous):
+    fail_since('SensorThread-3', 3600)
+    assert faults(anonymous)['2'] is True
+    run_in_thread('SensorThread-3', thread_status.report_success)
+    thread_status._entries['SensorThread-3']['thread'] = threading.current_thread()
+    assert faults(anonymous)['2'] is False
+
+
+def test_sensor_without_counting_causes_no_fault(admin, anonymous):
+    fail_since('SensorThread-10', 3600)    # sensor 10 belongs to group 2
+    assert faults(anonymous)['2'] is True
+    assert admin.post('/api/sensors/10/edit', json={'counting': False}).status_code == 200
+    assert faults(anonymous)['2'] is False
+
+
+def test_ended_and_silent_threads_count_as_fault():
+    thread_status.register('SensorThread-1', 'Sensor 1', 7)
+    run_in_thread('SensorThread-1', lambda: (thread_status.bind(), thread_status.report_success()))
+    entry = thread_status._entries['SensorThread-1']
+    entry['last_run'] -= datetime.timedelta(seconds=900)
+    assert thread_status.fault_seconds('SensorThread-1') >= 900, "the thread is not alive any more"
+    entry['thread'] = threading.current_thread()
+    assert thread_status.fault_seconds('SensorThread-1') >= 900, "alive, but no report for 15 minutes"
+    entry['last_run'] = datetime.datetime.now()
+    assert thread_status.fault_seconds('SensorThread-1') == 0
+    assert thread_status.fault_seconds('SensorThread-99') == 0
+
+
+def test_display_page_contains_the_hidden_fault_indicator(anonymous):
+    page = anonymous.get('/visualize/display?group_id=1').get_data(as_text=True)
+    assert 'id="fault-indicator"' in page and 'style="display: none;"' in page

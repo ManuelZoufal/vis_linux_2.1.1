@@ -29,6 +29,7 @@ class AI_HANWHA(Sensor):
         self.username = username
         self.session = LoggingSession(f"SensorThread-{sensor_id}")
         self._control_scheme = 'https'  # scheme that last worked for reset and reboot
+        self._unanswered = False
 
     def fetch_sensor_values(self):
         """
@@ -46,11 +47,7 @@ class AI_HANWHA(Sensor):
             try:
                 response = self.session.get(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
                 response.raise_for_status()
-                data = response.text.split("\r")
-                forward_value_line1 = next((int(line.split('=')[1]) for line in data if 'Channel.0.LineIndex.1.InCount' in line), 0)
-                backward_value_line1 = next((int(line.split('=')[1]) for line in data if 'Channel.0.LineIndex.1.OutCount' in line), 0)
-                forward_value_line2 = next((int(line.split('=')[1]) for line in data if 'Channel.0.LineIndex.2.InCount' in line), 0)
-                backward_value_line2 = next((int(line.split('=')[1]) for line in data if 'Channel.0.LineIndex.2.OutCount' in line), 0)
+                forward_value_line1, backward_value_line1, forward_value_line2, backward_value_line2 = self._parse_counts(response.text)
                 self.forward_value = forward_value_line1 + forward_value_line2
                 self.backward_value = backward_value_line1 + backward_value_line2
                 self.occupancy = self.forward_value - self.backward_value
@@ -63,6 +60,34 @@ class AI_HANWHA(Sensor):
                 return False
 
         return False
+
+    @staticmethod
+    def _parse_counts(text):
+        """
+        Read the counters of both lines from the answer of the camera
+
+        Returns:
+        tuple: (in line 1, out line 1, in line 2, out line 2); a missing value counts as 0
+        """
+        data = text.split("\r")
+        return tuple(next((int(line.split('=')[1]) for line in data if key in line), 0)
+                     for key in ('Channel.0.LineIndex.1.InCount', 'Channel.0.LineIndex.1.OutCount',
+                                 'Channel.0.LineIndex.2.InCount', 'Channel.0.LineIndex.2.OutCount'))
+
+    def _read_counts(self):
+        """
+        Read the counters without storing them, to check a reset
+
+        Returns:
+        tuple: See _parse_counts; None if the camera did not answer
+        """
+        url = f"http://{self.ip_address}/stw-cgi/eventsources.cgi?msubmenu=peoplecount&action=check&Channel=0"
+        try:
+            response = self.session.get(url, auth=HTTPDigestAuth(self.username, self.password), verify=False, timeout=REQUEST_TIMEOUT, proxies={"http": None, "https": None})
+            response.raise_for_status()
+            return self._parse_counts(response.text)
+        except (RequestException, ValueError, IndexError):
+            return None
 
     def _https_problem(self):
         """
@@ -107,6 +132,7 @@ class AI_HANWHA(Sensor):
         bool: True if the camera accepted the command
         """
         self.last_action_error = None
+        self._unanswered = False  # True: the command failed without any answer of the camera
         schemes = [self._control_scheme] + [s for s in ('https', 'http') if s != self._control_scheme]
         failures = []
         for scheme in schemes:
@@ -129,6 +155,7 @@ class AI_HANWHA(Sensor):
                 continue
             except requests.RequestException as e:
                 self.log_failure(what, e, response, action=True)
+                self._unanswered = response is None
                 return False
             if scheme != self._control_scheme:
                 self._control_scheme = scheme
@@ -138,13 +165,48 @@ class AI_HANWHA(Sensor):
             self.log_info(f"{what} erfolgreich über {scheme.upper()}. Response: {response.status_code} | {event_log.shorten(response.text, 200)}")
             return True
         self.last_action_error = f"{what} fehlgeschlagen: {'; '.join(failures)}"
+        self._unanswered = True
         return False
 
     def reset_sensor_values(self):
         """
         Reset sensor values
+
+        If the camera does not answer the command, the counters are read. An
+        answer with an error (e.g. a rejected login) is final. The
+        command is repeated once, and only if the counters show that the camera
+        did not execute it: none of them is lower than before and they are not
+        all zero. If they cannot be read, nothing is repeated.
+
+        Returns:
+        bool: True if the counters were reset
         """
-        return self._control('Zurücksetzen', 'msubmenu=databasereset&action=control&IncludeDataType=PeopleCount')
+        query = 'msubmenu=databasereset&action=control&IncludeDataType=PeopleCount'
+        source, label = f"SensorThread-{self.sensor_id}", f"Sensor {self.sensor_id}: {self.name}"
+        before = self._read_counts()
+        if self._control('Zurücksetzen', query):
+            return True
+        if not self._unanswered:
+            return False  # the camera answered and refused
+        first_error = self.last_action_error or "Zurücksetzen fehlgeschlagen"
+        after = self._read_counts()
+        if after is None:
+            self.last_action_error = f"{first_error}. Zählwerte danach nicht lesbar, daher keine Wiederholung"
+            return False
+        if not any(after) or (before is not None and any(now < earlier for now, earlier in zip(after, before))):
+            # The camera executed the command although it did not confirm it
+            self.last_action_error = None
+            message = f"Zurücksetzen nicht bestätigt ({first_error}), die Zählwerte sind aber zurückgesetzt: vorher {before}, danach {after}"
+            self.log_info(message)
+            event_log.event('info', source, message, label)
+            return True
+        self.log_info(f"Zählwerte nach dem Zurücksetzen unverändert ({after}), der Befehl wird einmal wiederholt. Erster Versuch: {first_error}")
+        event_log.detail(source, f"Kontrolle nach Zurücksetzen | Zählwerte vorher {before}, danach {after} | Befehl wird einmal wiederholt")
+        if self._control('Zurücksetzen', query):
+            event_log.event('info', source, f"Zurücksetzen erst beim zweiten Versuch erfolgreich. Erster Versuch: {first_error}", label)
+            return True
+        self.last_action_error = f"{self.last_action_error or 'Zurücksetzen fehlgeschlagen'} (auch die Wiederholung; erster Versuch: {first_error})"
+        return False
 
     def reboot_sensor(self):
         """

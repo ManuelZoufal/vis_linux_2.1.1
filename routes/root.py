@@ -32,6 +32,13 @@ def group_settings():
 def logs():
     return render_template('logs.html')
 
+@root_bp.route('/settings', endpoint='settings')
+@login_required(role='Administrator')
+def settings():
+    """Certificate, verbose server log and links to the credential pages"""
+    return render_template('settings.html')
+
+
 @root_bp.route('/schedules', endpoint='schedules')
 @login_required(role='Administrator')
 def schedules():

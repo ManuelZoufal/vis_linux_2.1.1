@@ -34,6 +34,8 @@ def _display_timezone():
 
 
 DISPLAY_TIMEZONE = _display_timezone()
+# The display shows a red dot when a counting sensor of its group has been failing for this long
+DISPLAY_FAULT_SECONDS = float(os.environ.get('DISPLAY_FAULT_MINUTES', 5)) * 60
 
 
 def _group_values(data, current=None):
@@ -243,8 +245,11 @@ def get_data():
             dt = datetime.strptime(sensor['timestamp'], '%Y-%m-%d %H:%M:%S')
             dt = dt.replace(tzinfo=timezone.utc).astimezone(DISPLAY_TIMEZONE)  # The database stores UTC
             sensor['timestamp'] = dt.strftime('%Y-%m-%d %H:%M:%S %Z')
-    # Get group data from the config file
-    group_data = config['groups']
+    # Get group data from the config file. "fault" tells the display that the shown
+    # occupancy may be wrong: a counting sensor of the group has been failing for a while
+    faulty_groups = {str(sensor['group_id']) for sensor in sensor_data if sensor['counting']
+                     and thread_status.fault_seconds(f"SensorThread-{sensor['sensor_id']}") >= DISPLAY_FAULT_SECONDS}
+    group_data = [{**group, 'fault': str(group['group_id']) in faulty_groups} for group in config['groups']]
 
     # Return the sensor data and group data as a JSON object
     return jsonify({

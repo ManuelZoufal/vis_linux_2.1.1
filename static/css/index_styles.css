@@ -190,3 +190,18 @@ marquee {
     width: 100%;
     font-size: 2em;
 }
+
+/* Small red dot in the corner: a counting sensor of the group has been failing for a while */
+.fault-indicator {
+    position: fixed;
+    top: 1.2vh;
+    right: 1.2vh;
+    width: 1.8vh;
+    height: 1.8vh;
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 50%;
+    background-color: #e00000;
+    box-shadow: 0 0 0 0.3vh rgba(255, 255, 255, 0.85);
+    z-index: 1000;
+}

@@ -5,33 +5,18 @@
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/logs_styles.css') }}">
 
-<div class="logs-section">
-    <h2>Änderungsprotokoll</h2>
-    <button class="button button-primary" onclick="exportLogs()">Logs exportieren</button>
-    <p id="logs-summary" class="thread-summary"></p>
-    <table id="logs-table">
-        <thead>
-            <tr>
-                <th>Zeitstempel</th>
-                <th>Nachricht</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Logs will be populated here -->
-        </tbody>
-    </table>
+{% if session['role'] == 'Administrator' %}
+<div class="tab-bar" id="log-tabs">
+    <button class="tab-button" data-tab="status">Thread-Status</button>
+    <button class="tab-button" data-tab="events">Ereignisprotokoll</button>
+    <button class="tab-button" data-tab="changes">Änderungsprotokoll</button>
+    <button class="tab-button" data-tab="detail">Detail-Protokoll</button>
 </div>
 
-{% if session['role'] == 'Administrator' %}
-<div class="thread-section">
+<div class="thread-section tab-panel" id="tab-status">
     <h2>Thread-Status</h2>
     <button class="button button-primary" onclick="exportThreadStatus()">Thread-Status exportieren</button>
     <p id="thread-summary" class="thread-summary">Lade Thread-Status …</p>
-    <p id="certificate-status" class="thread-summary"></p>
-    <p class="thread-summary">
-        <span id="certificate-renewal"></span>
-        <button class="button button-secondary" id="certificate-renew-button" onclick="renewCertificate()">Zertifikat jetzt erneuern</button>
-    </p>
     <table id="thread-table">
         <thead>
             <tr>
@@ -49,12 +34,12 @@
     </table>
 </div>
 
-<div class="thread-section">
+<div class="thread-section tab-panel" id="tab-events">
     <h2>Ereignisprotokoll</h2>
     <p class="thread-summary">Ausfälle, Erholungen und ausgeführte Zeitpläne. Erfolgreiche Abfragen werden nicht aufgezeichnet.</p>
     <div class="log-controls">
         <label>Zeitraum
-            <select id="event-hours">
+            <select id="event-hours" onchange="refreshEvents()">
                 <option value="1">letzte Stunde</option>
                 <option value="6">letzte 6 Stunden</option>
                 <option value="24" selected>letzte 24 Stunden</option>
@@ -63,9 +48,9 @@
             </select>
         </label>
         <label>Quelle
-            <select id="event-source"><option value="">alle</option></select>
+            <select id="event-source" onchange="refreshEvents()"><option value="">alle</option></select>
         </label>
-        <button class="button button-primary" onclick="fetchEvents()">Aktualisieren</button>
+        <button class="button button-primary" onclick="refreshEvents()">Aktualisieren</button>
         <button class="button button-primary" onclick="exportEvents()">Ereignisse exportieren</button>
     </div>
     <p id="event-summary" class="thread-summary"></p>
@@ -82,9 +67,30 @@
             <!-- Events will be populated here -->
         </tbody>
     </table>
+    <div class="pager" id="event-pager"></div>
+</div>
+{% endif %}
+
+<div class="logs-section tab-panel" id="tab-changes">
+    <h2>Änderungsprotokoll</h2>
+    <button class="button button-primary" onclick="exportLogs()">Logs exportieren</button>
+    <p id="logs-summary" class="thread-summary"></p>
+    <table id="logs-table">
+        <thead>
+            <tr>
+                <th>Zeitstempel</th>
+                <th>Nachricht</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Logs will be populated here -->
+        </tbody>
+    </table>
+    <div class="pager" id="logs-pager"></div>
 </div>
 
-<div class="thread-section">
+{% if session['role'] == 'Administrator' %}
+<div class="thread-section tab-panel" id="tab-detail">
     <h2>Detail-Protokoll</h2>
     <p class="thread-summary">
         Zeichnet für eine begrenzte Zeit jede einzelne Anfrage an Sensoren und Navigator auf, auch die erfolgreichen.
@@ -125,28 +131,8 @@
         </tbody>
     </table>
 </div>
-
-<div class="thread-section">
-    <h2>Ausführliches Server-Log</h2>
-    <p class="thread-summary">
-        Schreibt für eine begrenzte Zeit zusätzlich jede Sensorabfrage, jede Webanfrage und die Meldungen der Bibliotheken
-        ins Server-Log, ohne Neustart. Im Normalbetrieb stehen dort nur Start, Warnungen und Fehler.
-    </p>
-    <p id="server-log-status" class="thread-summary"></p>
-    <div class="log-controls" id="server-log-controls">
-        <label>Dauer
-            <select id="server-log-minutes">
-                <option value="15" selected>15 Minuten</option>
-                <option value="60">1 Stunde</option>
-                <option value="360">6 Stunden</option>
-                <option value="1440">24 Stunden</option>
-            </select>
-        </label>
-        <button class="button button-primary" onclick="startServerLog()">Einschalten</button>
-        <button class="button button-danger" id="server-log-stop" onclick="stopServerLog()">Ausschalten</button>
-    </div>
-</div>
 {% endif %}
 
+<script src="{{ url_for('static', filename='js/pager.js') }}"></script>
 <script src="{{ url_for('static', filename='js/logs.js') }}"></script>
 {% endblock %}

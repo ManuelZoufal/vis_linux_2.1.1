@@ -3,6 +3,13 @@
 Die Anwendung zeigt diese Datei unter „Was ist neu“ an (Klick auf die Versionsnummer in der Navigationsleiste).
 Format: eine Überschrift `## <Version> – <Datum>` je Version, darunter eine Zeile mit `- ` je Änderung.
 
+## 2.1.23 – 2026-11-12
+
+- Zurücksetzen der Kameras mit Kontrolle: Bestätigt eine Kamera den Befehl nicht, werden die Zählwerte gelesen. Nur wenn sie nachweislich nicht zurückgesetzt wurden, wird der Befehl einmal wiederholt
+- Belegungsanzeige: kleiner roter Punkt oben rechts, wenn ein zählender Sensor der Gruppe seit `DISPLAY_FAULT_MINUTES` (Standard 5) Minuten keine Werte liefert
+- Seite „Logs“ mit Registerkarten (Thread-Status, Ereignisprotokoll, Änderungsprotokoll, Detail-Protokoll); Ereignis- und Änderungsprotokoll zeigen 20 Zeilen je Seite
+- Neue Seite „Einstellungen“ mit Zertifikat, ausführlichem Server-Log und den Verweisen auf Navigator- und Sensor-Zugang; diese beiden Einträge stehen nicht mehr einzeln in der Navigationsleiste
+
 ## 2.1.22 – 2026-11-11
 - Seite „Was ist neu“ mit dem Änderungsverlauf, erreichbar über die Versionsnummer in der Navigationsleiste
 - Geplante Aktionen haben ein Feld für eine kurze Beschreibung; sie erscheint in der Liste, im Thread-Status und im Ereignisprotokoll
