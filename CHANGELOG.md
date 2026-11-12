@@ -3,6 +3,12 @@
 Die Anwendung zeigt diese Datei unter „Was ist neu“ an (Klick auf die Versionsnummer in der Navigationsleiste).
 Format: eine Überschrift `## <Version> – <Datum>` je Version, darunter eine Zeile mit `- ` je Änderung.
 
+## 2.1.24 – 2026-11-12
+
+- Nach einem Passwortwechsel enden alle anderen Sitzungen dieses Benutzers mit ihrer nächsten Anfrage; die Sitzung, in der das Passwort geändert wurde, bleibt angemeldet
+- Der Upload unter „Visualisierung konfigurieren“ überschreibt keine vorhandene Datei mehr, sondern hängt eine Nummer an den Namen
+- Dialog „Geplante Aktionen“: „Tag“ wird nur bei wöchentlichem, „Uhrzeit“ nur bei täglichem oder wöchentlichem Intervall verlangt und angezeigt; leere Pflichtfelder werden vor dem Speichern gemeldet
+
 ## 2.1.23 – 2026-11-12
 
 - Zurücksetzen der Kameras mit Kontrolle: Bestätigt eine Kamera den Befehl nicht, werden die Zählwerte gelesen. Nur wenn sie nachweislich nicht zurückgesetzt wurden, wird der Befehl einmal wiederholt

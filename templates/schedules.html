@@ -46,7 +46,7 @@
             </div>
             <div class="form-group">
                 <label for="scheduleInterval">Intervall</label>
-                <select id="scheduleInterval" name="interval" required>
+                <select id="scheduleInterval" name="interval" required onchange="updateScheduleFields()">
                     <option value="every_minute">Minütlich</option>
                     <option value="every_5_minutes">Alle 5 Minuten</option>
                     <option value="every_15_minutes">Alle 15 Minuten</option>

@@ -3,6 +3,7 @@ from datetime import datetime
 from functools import wraps
 from flask import session, redirect, url_for, jsonify, request
 
+import hashlib
 import os
 import threading
 
@@ -58,22 +59,40 @@ def log_change(message):
         print(f"[LOG ERROR] Could not write to change_log.txt: {e}")
 
 
+def password_fingerprint(password_hash):
+    """
+    Short value derived from the stored password hash. It is kept in the
+    session, so sessions end when the password changes.
+
+    Args:
+    password_hash (str): Password hash as stored in the database
+    """
+    return hashlib.sha256(password_hash.encode('utf-8')).hexdigest()[:16]
+
+
 def refresh_session_user():
     """
     Run before every request: take the role of the logged in user from the
     database, so a changed role applies immediately, and end the session if
-    the user was deleted.
+    the user was deleted or the password was changed since the login.
     """
     if 'user_id' not in session or request.endpoint == 'static':
         return
     conn = get_connection()
     try:
-        user = conn.execute('SELECT role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+        user = conn.execute('SELECT role, password FROM users WHERE id = ?', (session['user_id'],)).fetchone()
     finally:
         conn.close()
     if user is None:
         session.clear()
-    elif session.get('role') != user['role']:
+        return
+    fingerprint = password_fingerprint(user['password'])
+    if 'pw' not in session:
+        session['pw'] = fingerprint  # session from before this check existed: it is bound to the password from now on
+    elif session['pw'] != fingerprint:
+        session.clear()  # the password was changed after this login
+        return
+    if session.get('role') != user['role']:
         session['role'] = user['role']
 
 

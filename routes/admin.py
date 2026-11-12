@@ -1,6 +1,6 @@
 from . import admin_bp
 
-from src.helpers import login_required, log_change
+from src.helpers import login_required, log_change, password_fingerprint
 from src.navigator import create_OAUTH_token
 from src import login_guard
 from src import sensor_credentials as credentials
@@ -70,6 +70,7 @@ def login():
             session.clear()
             session['user_id'] = user['id']
             session['role'] = user['role']
+            session['pw'] = password_fingerprint(user['password'])
             if remember:
                 session.permanent = True
             return redirect(url_for('admin.index'))
@@ -213,11 +214,13 @@ def reset_password():
         if user is None or not check_password_hash(user['password'], request.form.get('current_password', '')):
             flash('Das aktuelle Passwort ist falsch.', 'error')
             return redirect(url_for('admin.change_password'))
-        conn.execute('UPDATE users SET password = ? WHERE id = ?',
-                     (generate_password_hash(new_password, method='pbkdf2:sha256'), session['user_id']))
+        new_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
+        conn.execute('UPDATE users SET password = ? WHERE id = ?', (new_hash, session['user_id']))
         conn.commit()
     finally:
         conn.close()
+    # This session stays logged in; every other session of the user ends with its next request
+    session['pw'] = password_fingerprint(new_hash)
 
     flash('Das Passwort wurde geändert.', 'success')
     return redirect(url_for('admin.index'))
