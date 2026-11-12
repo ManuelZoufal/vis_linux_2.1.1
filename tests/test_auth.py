@@ -129,3 +129,33 @@ def test_users_survive_a_restart_and_keep_their_changed_password():
     init_db()  # what the application does at every start
     assert login(new_client(), 'kollege', 'eigenes')
     assert read_config()['sensors'], "the configuration is untouched by a restart"
+
+
+def test_other_sessions_end_when_the_password_is_changed():
+    create_user('anna', 'Benutzer')
+    here, elsewhere = new_client('10.0.0.1'), new_client('10.0.0.2')
+    assert login(here, 'anna', 'pw') and login(elsewhere, 'anna', 'pw')
+    assert elsewhere.get('/api/logs').status_code == 200
+    done = here.post('/admin/users/reset_password/', follow_redirects=True,
+                     data={'current_password': 'pw', 'new_password': 'neu', 'confirm_password': 'neu'})
+    assert 'Das Passwort wurde geändert.' in flash_messages(done)
+    assert here.get('/api/logs').status_code == 200, "the session that changed the password stays logged in"
+    assert elsewhere.get('/api/logs').status_code == 401, "a session opened with the old password ends"
+    assert elsewhere.get('/logs').status_code == 302
+    # Other users are not affected
+    assert client_for('Betrachter').get('/api/logs').status_code == 200
+
+
+def test_session_from_before_the_update_is_bound_to_the_password_on_its_next_request():
+    user_id = create_user('bert', 'Benutzer')
+    client = new_client()
+    with client.session_transaction() as session:  # as written by version 2.1.23: without the fingerprint
+        session['user_id'], session['role'] = user_id, 'Benutzer'
+    assert client.get('/api/logs').status_code == 200
+    with client.session_transaction() as session:
+        assert session['pw']
+    conn = get_connection()
+    conn.execute("UPDATE users SET password = 'anderer-hash' WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    assert client.get('/api/logs').status_code == 401

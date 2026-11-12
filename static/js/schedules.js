@@ -30,7 +30,8 @@ function renderSchedules(scheduleList){
     scheduleList.forEach(schedule => {
         const sensorNames = Array.isArray(schedule.sensors) ? schedule.sensors.join(', ') : schedule.sensors;
         const tr = document.createElement('tr');
-        appendCells(tr, [schedule.description || '–', schedule.action, schedule.interval, schedule.day || 'N/A', schedule.time, sensorNames]);
+        appendCells(tr, [schedule.description || '–', schedule.action, schedule.interval, schedule.interval === 'weekly' ? schedule.day : '–',
+            ['daily', 'weekly'].includes(schedule.interval) ? schedule.time : '–', sensorNames]);
         const actions = document.createElement('td');
         actions.append(
             createButton('Bearbeiten', 'button-secondary', () => openEditScheduleModal(schedule.id)), ' ',
@@ -64,8 +65,20 @@ async function fetchSensorData() {
     });
 }
 
+// Day is only needed for a weekly schedule, time for a daily or weekly one.
+// Fields that are not needed are hidden and disabled, so they are neither required nor sent.
+function updateScheduleFields() {
+    const interval = document.getElementById('scheduleInterval').value;
+    [['scheduleDay', interval === 'weekly'], ['scheduleTime', interval === 'daily' || interval === 'weekly']].forEach(([id, needed]) => {
+        const field = document.getElementById(id);
+        field.disabled = !needed;
+        field.closest('.form-group').style.display = needed ? '' : 'none';
+    });
+}
+
 function openScheduleModal() {
     document.getElementById('scheduleForm').reset();
+    updateScheduleFields();
     document.getElementById('scheduleModalTitle').innerText = 'Neue geplante Aktion hinzufügen';
     document.getElementById('saveScheduleButton').onclick = () => saveSchedule();
     document.getElementById('scheduleModal').style.display = 'block';
@@ -79,8 +92,9 @@ function openEditScheduleModal(scheduleId) {
     document.getElementById('scheduleDescription').value = schedule.description || '';
     document.getElementById('scheduleAction').value = schedule.action;
     document.getElementById('scheduleInterval').value = schedule.interval;
-    document.getElementById('scheduleDay').value = schedule.day || '';
-    document.getElementById('scheduleTime').value = schedule.time;
+    document.getElementById('scheduleDay').value = schedule.day || 'monday';
+    document.getElementById('scheduleTime').value = schedule.time || '';
+    updateScheduleFields();
     const sensorSelect = document.getElementById('scheduleSensors');
     Array.from(sensorSelect.options).forEach(option => {
         option.selected = schedule.sensors.includes(option.value);
@@ -96,6 +110,7 @@ function closeModal(modalId) {
 
 async function saveSchedule(scheduleId = null) {
     const form = document.getElementById('scheduleForm');
+    if (!form.reportValidity()) return;  // the browser names the first required field that is empty
     const formData = new FormData(form);
     const data = {};
     formData.forEach((value, key) => {

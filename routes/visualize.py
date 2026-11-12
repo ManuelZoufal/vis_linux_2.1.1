@@ -27,6 +27,12 @@ def configure_visualization():
                 filename = secure_filename(file.filename)
                 if not os.path.exists(UPLOAD_FOLDER):
                     os.makedirs(UPLOAD_FOLDER)
+                # Never replace an existing file (e.g. the display image of a group): add a number instead
+                base, extension = os.path.splitext(filename)
+                number = 1
+                while os.path.exists(os.path.join(UPLOAD_FOLDER, filename)):
+                    filename = f"{base}_{number}{extension}"
+                    number += 1
                 file.save(os.path.join(UPLOAD_FOLDER, filename))
                 flash('File successfully uploaded')
                 return redirect(url_for('visualize.display', filename=filename))

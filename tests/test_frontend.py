@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from conftest import ROOT
+from conftest import ROOT, WORK, client_for
 
 SCRIPTS = sorted((ROOT / 'static' / 'js').glob('*.js'))
 TEMPLATES = sorted((ROOT / 'templates').rglob('*.html'))
@@ -95,3 +95,20 @@ def test_display_page_can_be_shown_inside_the_tile_view(anonymous):
     assert response.status_code == 200
     assert 'X-Frame-Options' not in response.headers
     assert 'frame-ancestors' not in response.headers.get('Content-Security-Policy', '')
+
+
+def test_upload_never_replaces_an_existing_file():
+    """A user with the role "Benutzer" could replace the display image of a group by using its file name."""
+    import io
+    uploads = WORK / 'static' / 'uploads'
+    uploads.mkdir(parents=True, exist_ok=True)
+    (uploads / 'group_1_img_0.png').write_bytes(b'Bild der Gruppe')
+    client = client_for('Benutzer')
+    for expected in ('group_1_img_0_1.png', 'group_1_img_0_2.png'):
+        response = client.post('/visualize/configure', data={'file': (io.BytesIO(b'neu'), 'group_1_img_0.png')},
+                               content_type='multipart/form-data')
+        assert response.status_code == 302
+        assert (uploads / expected).read_bytes() == b'neu'
+    assert (uploads / 'group_1_img_0.png').read_bytes() == b'Bild der Gruppe'
+    client.post('/visualize/configure', data={'file': (io.BytesIO(b'frei'), 'anderes.png')}, content_type='multipart/form-data')
+    assert (uploads / 'anderes.png').read_bytes() == b'frei', "a free name is kept"
