@@ -1,6 +1,23 @@
 # Getestet mit Python 3.11
+# Alle Pakete sind mit fester Version angegeben, damit jede Installation gleich ausfällt.
+# Lizenzen: siehe Abschnitt „Python-Pakete“ in README.md
+
+# ---- direkt von der Anwendung verwendet ----
 Flask==3.1.3
 python-dotenv==1.2.4
 requests==2.34.2
 schedule==1.2.2
 urllib3==2.8.0
+Werkzeug==3.1.9
+
+# ---- von Flask benötigt ----
+blinker==1.9.0
+click==8.5.1
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.4
+
+# ---- von requests benötigt ----
+certifi==2026.10.23
+charset-normalizer==3.5.2
+idna==3.20
