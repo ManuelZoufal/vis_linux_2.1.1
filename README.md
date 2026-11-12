@@ -248,6 +248,10 @@ Nur für die Tests (`requirements-dev.txt`): pytest 9.2.0 (MIT) mit iniconfig 2.
 
 Außerdem nutzt die Anwendung das Programm `openssl` des Betriebssystems für die Zertifikatserneuerung.
 
+Die vollständigen Lizenztexte aller Pakete und der Browser-Bibliotheken stehen in `THIRD-PARTY-LICENSES.txt`.
+Die Datei gehört zu jeder Weitergabe, die diese Bibliotheken enthält, und muss erneuert werden, wenn sich eine
+Version in `requirements.txt` ändert (ein Test prüft die Übereinstimmung).
+
 ## Enthaltene Bibliotheken
 
 | Bibliothek | Version | Lizenz | Datei |

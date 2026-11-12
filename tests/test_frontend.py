@@ -190,3 +190,14 @@ def test_configuration_page_shows_previews_and_confirms_saving(admin):
     assert 'type="range" id="opacity"' in page and 'id="preview-image"' in page and 'Bild entfernen' in page
     saved = admin.post('/visualize/update_marquee', data={'marquee_text': 'Neu'}).get_data(as_text=True)
     assert 'Die Laufschrift wurde gespeichert.' in saved and 'data-initial="Neu"' in saved
+
+
+def test_license_file_names_every_package_with_its_pinned_version():
+    """THIRD-PARTY-LICENSES.txt must be renewed when a version in requirements.txt changes."""
+    text = (ROOT / 'THIRD-PARTY-LICENSES.txt').read_text(encoding='utf-8')
+    pinned = [line.strip().split('==') for line in (ROOT / 'requirements.txt').read_text(encoding='utf-8').splitlines() if '==' in line]
+    assert len(pinned) == 14
+    for name, version in pinned:
+        assert f"\n{name} {version}\nLizenz: " in text, name
+    assert '\nChart.js 4.6.1\n' in text and '\nchartjs-plugin-datalabels 2.2.0\n' in text
+    assert '--- NOTICE ---' in text, "requests is under the Apache licence, its NOTICE file belongs to it"
