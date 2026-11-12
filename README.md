@@ -41,6 +41,7 @@ venv/bin/pip install -r requirements.txt
    | `SENSOR_<ID>_USERNAME`, `SENSOR_<ID>_PASSWORD` | Abweichende Zugangsdaten eines einzelnen Sensors, z. B. `SENSOR_7_PASSWORD`; haben Vorrang vor dem Standard des Typs |
    | `LOG_DIR`, `LOG_MAX_MB`, `LOG_DETAIL_KEEP` | Verzeichnis für Ereignis- und Detail-Protokoll (Standard `logs`), Größengrenze je Datei in MB (Standard 200), Anzahl aufbewahrter Detail-Protokolle (Standard 5) |
    | `NAVIGATOR_RETRY_MINUTES` | Abstand der Token-Anfragen, nachdem 5 in Folge fehlgeschlagen sind (Standard 15) |
+   | `DISPLAY_FAULT_MINUTES` | Die Belegungsanzeige zeigt einen kleinen roten Punkt, wenn ein zählender Sensor der Gruppe so lange keine Werte liefert (Standard 5) |
    | `CERT_WARN_DAYS` | Ab so vielen Tagen vor Ablauf des Zertifikats sehen Administratoren einen Hinweis (Standard 30) |
    | `CERT_AUTO_RENEW`, `CERT_RENEW_DAYS`, `CERT_VALID_DAYS` | Automatische Erneuerung des Zertifikats (Standard an, 1 Tag vor Ablauf, 365 Tage gültig), siehe „Zertifikat“ |
    | `CERT_CA_CERT`, `CERT_CA_KEY`, `CERT_CA_KEY_PASSWORD` | Eigene CA zum Ausstellen (Standard `ca.crt`, `ca.key`, kein Passwort) |
@@ -92,7 +93,7 @@ Hinweise:
 
 ## Zertifikat
 
-Das Ablaufdatum steht für Administratoren unter „Logs“; ab `CERT_WARN_DAYS` Tagen vor Ablauf erscheint auf
+Das Ablaufdatum steht für Administratoren unter „Einstellungen“; ab `CERT_WARN_DAYS` Tagen vor Ablauf erscheint auf
 jeder Seite ein Hinweis.
 
 ### Automatische Erneuerung
@@ -111,7 +112,7 @@ Zertifikat (`CERT_VALID_DAYS`, Standard 365 Tage) und verwendet es sofort, ohne 
   Rechnername und IP-Adresse des Servers eingetragen.
 - Die bisherigen Dateien bleiben als `Webserver_IP.crt.alt` und `Webserver_IP.pem.alt` erhalten.
 - Ein von Hand getauschtes Zertifikat lädt die Anwendung bei der nächsten stündlichen Prüfung, sofort mit einem Neustart.
-- Unter „Logs“ stehen der Zeitpunkt der nächsten Erneuerung, die Art der Ausstellung und die Schaltfläche
+- Unter „Einstellungen“ stehen der Zeitpunkt der nächsten Erneuerung, die Art der Ausstellung und die Schaltfläche
   „Zertifikat jetzt erneuern“. Abschalten: `CERT_AUTO_RENEW=false`; dann bricht der Start ohne Zertifikat ab.
 
 Der CA-Schlüssel `ca.key` liegt dafür auf dem Server; wer ihn lesen kann, kann Zertifikate ausstellen, denen
@@ -177,7 +178,8 @@ journalctl -u vis -f
 
 ## Überwachung
 
-Administratoren finden unter „Logs“:
+Administratoren finden unter „Logs“ vier Registerkarten (Ereignis- und Änderungsprotokoll mit 20 Zeilen je Seite)
+und unter „Einstellungen“ das Zertifikat, das ausführliche Server-Log und die Zugangsdaten:
 
 - **Thread-Status:** je Hintergrund-Thread den Zustand, den letzten erfolgreichen Durchlauf und den letzten Fehler,
   alle 2 Sekunden aktualisiert, mit Export.
@@ -185,10 +187,16 @@ Administratoren finden unter „Logs“:
   solange sie andauert, die Erholung mit Dauer des Ausfalls sowie jeder ausgeführte Zeitplan mit dem Grund je
   fehlgeschlagenem Sensor. Filter nach Zeitraum und Quelle, Export. Erreicht die Datei `LOG_MAX_MB`, wird sie zu
   `events.log.1` und eine neue begonnen; es liegen also höchstens zwei Dateien vor.
-- **Ausführliches Server-Log:** schreibt für 15 Minuten bis 24 Stunden zusätzlich jede Sensorabfrage, jede Webanfrage
+- **Ausführliches Server-Log** (unter „Einstellungen“): schreibt für 15 Minuten bis 24 Stunden zusätzlich jede Sensorabfrage, jede Webanfrage
   und die Meldungen der Bibliotheken ins Server-Log, ohne Neustart, und schaltet sich danach selbst ab. Es ändert nur die
   Protokollstufe; der Werkzeug-Debugger bleibt an `APP_DEBUG` in der `.env` gebunden und lässt sich nicht über die
   Oberfläche einschalten.
+- **Störungspunkt auf der Belegungsanzeige:** Liefert ein zählender Sensor einer Gruppe seit `DISPLAY_FAULT_MINUTES`
+  (Standard 5) Minuten keine Werte, zeigt die Anzeige dieser Gruppe oben rechts einen kleinen roten Punkt. Er
+  verschwindet mit der ersten erfolgreichen Abfrage. Sensoren ohne Zählung und der Navigator-Upload lösen ihn nicht aus.
+- **Zurücksetzen mit Kontrolle (Kameras):** Antwortet eine Kamera auf den Befehl nicht, liest die Anwendung die
+  Zählwerte. Sind sie zurückgesetzt, gilt der Befehl als ausgeführt. Sind sie unverändert, wird er einmal wiederholt.
+  Sind sie nicht lesbar oder hat die Kamera mit einem Fehler geantwortet, wird nichts wiederholt.
 - **Detail-Protokoll** (`logs/detail_<Datum>_<Uhrzeit>.log`): für 15 Minuten bis 24 Stunden jede Anfrage an Sensoren
   und Navigator mit Dauer, Status und gekürzter Antwort. Es endet nach Ablauf der Zeit, beim Erreichen von `LOG_MAX_MB`
   oder bei einem Neustart. Passwörter, Token und Antworten auf Anmeldungen werden nicht geschrieben.

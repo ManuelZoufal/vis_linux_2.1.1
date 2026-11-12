@@ -4,7 +4,7 @@ import os
 import time
 from datetime import datetime, timezone
 
-from conftest import WORK, run_in_thread
+from conftest import ROOT, WORK, client_for, run_in_thread
 
 import routes.api as api
 from src import certificate, event_log, helpers, server_log, thread_status
@@ -141,3 +141,36 @@ def test_timestamps_follow_daylight_saving_time():
     convert = lambda text: datetime.strptime(text, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc).astimezone(api.DISPLAY_TIMEZONE).strftime('%H:%M %Z')
     assert convert('2026-11-10 10:00:00') == '11:00 CET'
     assert convert('2027-07-01 10:00:00') == '12:00 CEST'
+
+
+# ---- Layout of the logs page and the settings page ---------------------------
+
+def test_logs_page_has_tabs_and_pages_for_administrators(admin):
+    page = admin.get('/logs').get_data(as_text=True)
+    for tab in ('status', 'events', 'changes', 'detail'):
+        assert f'data-tab="{tab}"' in page and f'id="tab-{tab}"' in page
+    assert 'id="logs-pager"' in page and 'id="event-pager"' in page and 'js/pager.js' in page
+    # Certificate and verbose server log moved to the settings page
+    assert 'certificate-renew-button' not in page and 'server-log-minutes' not in page
+
+
+def test_other_users_only_see_the_change_log():
+    page = client_for('Betrachter').get('/logs').get_data(as_text=True)
+    assert 'id="tab-changes"' in page and 'id="logs-pager"' in page
+    assert 'id="log-tabs"' not in page and 'id="tab-status"' not in page and 'id="tab-detail"' not in page
+
+
+def test_settings_page_is_for_administrators(admin, anonymous):
+    assert anonymous.get('/settings').status_code == 302
+    assert client_for('Benutzer').get('/settings').status_code in (302, 403)
+    page = admin.get('/settings').get_data(as_text=True)
+    for expected in ('certificate-renew-button', 'server-log-minutes', '/admin/navigator', '/admin/sensor_credentials', 'js/settings.js'):
+        assert expected in page
+    navigation = admin.get('/logs').get_data(as_text=True).split('class="container"')[0]
+    assert 'href="/settings"' in navigation and '/admin/navigator' not in navigation
+
+
+def test_pager_shows_twenty_rows_per_page():
+    """The page size is part of the script; the behaviour itself is checked in the browser."""
+    script = (ROOT / 'static/js/pager.js').read_text(encoding='utf-8')
+    assert 'const PAGE_SIZE = 20;' in script

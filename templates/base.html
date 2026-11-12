@@ -19,8 +19,7 @@
             <a href="/schedules">Geplante Aktionen</a> <!-- Neue Registerkarte hinzugefügt -->
             <a href="/logs">Logs</a> <!-- Logs Registerkarte verschoben -->
             <a href="/admin/users">Benutzerverwaltung</a>
-            <a href="/admin/navigator">Navigator-Zugang</a>
-            <a href="/admin/sensor_credentials">Sensor-Zugang</a>
+            <a href="/settings">Einstellungen</a>
         {% endif %}
         {% if session['role'] in ['Administrator', 'Benutzer', 'Betrachter'] %}
             <a href="/admin/users/reset_password">Passwort ändern</a>

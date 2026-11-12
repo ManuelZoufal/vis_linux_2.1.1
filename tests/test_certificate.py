@@ -240,7 +240,7 @@ def test_button_renews_for_administrators_only(files, admin, anonymous):
     assert response.status_code == 200 and response.get_json()['certificate']['state'] == 'ok'
     assert content(files) != before
     assert 'Zertifikat erneuert durch Benutzer-ID' in admin.get('/api/logs').get_data(as_text=True)
-    page = admin.get('/logs').get_data(as_text=True)
+    page = admin.get('/settings').get_data(as_text=True)
     assert 'Zertifikat jetzt erneuern' in page
 
 

@@ -17,6 +17,7 @@ async function fetchOccupancy(groupId) {
             max_occupancy: group.max_occupancy,
             welcome_text: group.welcome_text,
             maintenance_mode: group.maintenance_mode,
+            fault: group.fault === true,
             display_images: group.display_images || []
         };
     } catch (error) {
@@ -50,7 +51,13 @@ function updateImages(displayImages) {
     });
 }
 
+function updateFaultIndicator(data) {
+    // Small red dot: a sensor of this group has been failing for a while, the shown value may be wrong
+    document.getElementById('fault-indicator').style.display = data.fault && !data.maintenance_mode ? 'block' : 'none';
+}
+
 function updateChart(chart, data) {
+    updateFaultIndicator(data);
     const maintenanceSection = document.getElementById('maintenance-section');
     const visualizationSection = document.getElementById('visualization-section');
     const greeting = document.getElementById('greeting');

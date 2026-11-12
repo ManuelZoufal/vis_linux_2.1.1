@@ -184,6 +184,35 @@ def report_ended(error=None):
         event_log.event('ended', ended[0], ended[2], ended[1])
 
 
+def fault_seconds(name):
+    """
+    How long a thread has been failing without interruption
+
+    Counts a series of failed cycles, a thread that ended and a thread that
+    stopped reporting. A thread that idles on purpose is not failing.
+
+    Args:
+    name (str): Name of the thread
+
+    Returns:
+    float: Seconds since the failure began, 0 if the thread works or is unknown
+    """
+    now = datetime.now()
+    with _lock:
+        entry = _entries.get(name)
+        if not entry:
+            return 0
+        if entry['streak_started']:
+            return (now - entry['streak_started']).total_seconds()
+        state = _state(entry, now)
+        reference = entry['last_run'] or entry['started_at']
+        if state in ('stopped', 'stale') and reference:
+            return (now - reference).total_seconds()
+        if state == 'error' and entry['last_error_time']:
+            return (now - (entry['last_success'] or entry['started_at'] or entry['last_error_time'])).total_seconds()
+        return 0
+
+
 def _format(moment):
     return moment.strftime(TIME_FORMAT) if moment else None
 
