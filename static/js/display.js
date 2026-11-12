@@ -107,6 +107,30 @@ function updateMarqueeText() {
     xhr.send();
 }
 
+// Background image behind the content, set on the page "Visualisierung konfigurieren"
+let shownBackground = null;
+
+async function updateBackground() {
+    try {
+        const response = await fetch('/visualize/get_background');
+        if (!response.ok) return;
+        const background = await response.json();
+        const key = `${background.url}|${background.opacity}`;
+        if (key === shownBackground) return;
+        shownBackground = key;
+        const layer = document.getElementById('background-image');
+        if (background.url) {
+            layer.style.backgroundImage = `url("${encodeURI(background.url)}")`;
+            layer.style.opacity = background.opacity / 100;
+            layer.style.display = 'block';
+        } else {
+            layer.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Background update failed:', error);
+    }
+}
+
 async function init() {
     const urlParams = new URLSearchParams(window.location.search);
     const groupId = urlParams.get('group_id') || '1';
@@ -173,6 +197,7 @@ async function init() {
         updateChart(occupancyChart, data);
         updateTrafficLight(data.total_occupancy, data.max_occupancy);
         setInterval(updateMarqueeText, 5000);
+        setInterval(updateBackground, 5000);
 
         setInterval(async () => {
             try {
@@ -190,4 +215,5 @@ async function init() {
     }
 }
 
+updateBackground();  // independent of the occupancy data, so it also shows in maintenance mode
 init();

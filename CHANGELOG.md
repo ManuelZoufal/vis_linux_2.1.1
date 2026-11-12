@@ -3,6 +3,11 @@
 Die Anwendung zeigt diese Datei unter „Was ist neu“ an (Klick auf die Versionsnummer in der Navigationsleiste).
 Format: eine Überschrift `## <Version> – <Datum>` je Version, darunter eine Zeile mit `- ` je Änderung.
 
+## 2.1.25 – 2026-11-12
+
+- Hintergrundbild der Belegungsanzeige: Das unter „Visualisierung konfigurieren“ hochgeladene Bild liegt jetzt blass hinter dem Inhalt aller Anzeigen; die Deckkraft ist einstellbar (Standard 20 %), das Bild lässt sich ersetzen und entfernen
+- Die Seite zeigt eine Vorschau und meldet das Ergebnis; vorher wurde die Datei nur gespeichert und nirgends angezeigt
+
 ## 2.1.24 – 2026-11-12
 
 - Nach einem Passwortwechsel enden alle anderen Sitzungen dieses Benutzers mit ihrer nächsten Anfrage; die Sitzung, in der das Passwort geändert wurde, bleibt angemeldet

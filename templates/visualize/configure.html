@@ -7,13 +7,34 @@
 
 <div class="admin-section">
     <h2>Visualisierung konfigurieren</h2>
+    {% include 'admin/_flash.html' %}
+
+    <h3>Hintergrundbild</h3>
+    <p>Das Bild liegt auf allen Belegungsanzeigen blass hinter dem Inhalt. Eine Änderung erscheint dort nach wenigen Sekunden.</p>
+    {% if background.url %}
+    <div class="background-preview">
+        <img src="{{ background.url }}" alt="Hintergrundbild" style="opacity: {{ background.opacity / 100 }};">
+    </div>
+    <form method="POST" action="{{ url_for('visualize.update_background') }}" class="admin-form">
+        <div class="form-group">
+            <label for="opacity">Deckkraft in Prozent ({{ opacity_range[0] }} = kaum sichtbar, {{ opacity_range[1] }} = volles Bild):</label>
+            <input type="number" id="opacity" name="opacity" min="{{ opacity_range[0] }}" max="{{ opacity_range[1] }}" step="1" value="{{ background.opacity }}" required>
+        </div>
+        <button type="submit" name="action" value="save" class="button button-primary">Deckkraft speichern</button>
+        <button type="submit" name="action" value="remove" class="button button-danger" formnovalidate>Bild entfernen</button>
+    </form>
+    {% else %}
+    <p><em>Kein Hintergrundbild hinterlegt.</em></p>
+    {% endif %}
     <form method="POST" enctype="multipart/form-data" class="admin-form">
         <div class="form-group">
-            <label for="file">Hintergrundbild hochladen:</label>
-            <input type="file" id="file" name="file" required>
+            <label for="file">{{ 'Bild ersetzen' if background.url else 'Hintergrundbild hochladen' }} (png, jpg, jpeg, gif):</label>
+            <input type="file" id="file" name="file" accept=".png,.jpg,.jpeg,.gif" required>
         </div>
         <button type="submit" class="button button-primary">Hochladen</button>
     </form>
+
+    <h3>Laufschrift</h3>
     <form method="POST" action="{{ url_for('visualize.update_marquee') }}" class="admin-form">
         <div class="form-group">
             <label for="marquee_text">Laufschrift Text:</label>
