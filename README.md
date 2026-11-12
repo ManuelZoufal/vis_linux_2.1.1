@@ -222,6 +222,32 @@ Die Version steht in `app.py` (`APP_VERSION`) und wird in der Navigationsleiste 
 [CHANGELOG.md](CHANGELOG.md); angemeldete Benutzer sehen ihn in der Oberfläche mit einem Klick auf die Versionsnummer.
 Ein Eintrag `APP_VERSION` in `.env` hat keine Wirkung.
 
+## Python-Pakete
+
+Stand der `requirements.txt` (Python 3.11). Die Lizenz stammt aus den Metadaten bzw. der Lizenzdatei des jeweiligen Pakets.
+
+| Paket | Version | Lizenz | Verwendung |
+|---|---|---|---|
+| Flask | 3.1.3 | BSD-3-Clause | Webanwendung |
+| Werkzeug | 3.1.9 | BSD-3-Clause | Passwort-Hashes, Webserver (auch von Flask benötigt) |
+| python-dotenv | 1.2.4 | BSD-3-Clause | `.env` lesen und schreiben |
+| requests | 2.34.2 | Apache-2.0 | Abfragen der Sensoren und von Navigator |
+| urllib3 | 2.8.0 | MIT | von requests benötigt; Warnungen abschalten |
+| schedule | 1.2.2 | MIT | geplante Aktionen |
+| blinker | 1.9.0 | MIT | von Flask benötigt |
+| click | 8.5.1 | BSD-3-Clause | von Flask benötigt |
+| itsdangerous | 2.2.0 | BSD-3-Clause | von Flask benötigt (Sitzungs-Cookie) |
+| Jinja2 | 3.1.6 | BSD-3-Clause | von Flask benötigt (Vorlagen) |
+| MarkupSafe | 3.0.4 | BSD-3-Clause | von Jinja2 und Werkzeug benötigt |
+| certifi | 2026.10.23 | MPL-2.0 | von requests benötigt |
+| charset-normalizer | 3.5.2 | MIT | von requests benötigt |
+| idna | 3.20 | BSD-3-Clause | von requests benötigt |
+
+Nur für die Tests (`requirements-dev.txt`): pytest 9.2.0 (MIT) mit iniconfig 2.3.1 (MIT), packaging 26.3
+(Apache-2.0 oder BSD-2-Clause), pluggy 1.7.0 (MIT) und Pygments 2.21.0 (BSD-2-Clause).
+
+Außerdem nutzt die Anwendung das Programm `openssl` des Betriebssystems für die Zertifikatserneuerung.
+
 ## Enthaltene Bibliotheken
 
 | Bibliothek | Version | Lizenz | Datei |
