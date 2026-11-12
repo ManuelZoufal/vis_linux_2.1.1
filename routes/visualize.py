@@ -88,6 +88,7 @@ def update_marquee():
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     with open(MARQUEE_TEXT_FILE, 'w') as file:
         file.write(marquee_text)
+    flash('Die Laufschrift wurde gespeichert.', 'success')
     return render_template('visualize/configure.html', marquee_text=get_marquee_text(), background=get_background(),
                            opacity_range=BACKGROUND_OPACITY_RANGE)
 

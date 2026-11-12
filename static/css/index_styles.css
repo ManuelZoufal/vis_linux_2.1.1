@@ -199,8 +199,7 @@ h1 {
     padding: 6px 0;
 }
 
-marquee {
-    width: 100%;
+.marquee-container .marquee {
     font-size: 2em;
 }
 
