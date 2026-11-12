@@ -5,7 +5,7 @@ Format: eine Überschrift `## <Version> – <Datum>` je Version, darunter eine Z
 
 ## 2.1.26 – 2026-11-12
 
-- Laufschrift der Belegungsanzeige wiederholt sich fortlaufend ohne Lücke, statt erst vollständig durchzulaufen
+- Laufschrift der Belegungsanzeige wiederholt sich fortlaufend, getrennt durch `***`, statt erst vollständig durchzulaufen
 - Seite „Visualisierung konfigurieren“ neu gestaltet: zwei Karten für Hintergrundbild und Laufschrift, Vorschau der Anzeige mit Schieberegler für die Deckkraft, Vorschau der Laufschrift beim Tippen
 
 ## 2.1.25 – 2026-11-12

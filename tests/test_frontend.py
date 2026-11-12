@@ -177,6 +177,7 @@ def test_ticker_repeats_instead_of_using_the_marquee_element(admin, anonymous):
     assert 'js/marquee.js' in page and 'css/marquee.css' in page
     script = (ROOT / 'static/js/marquee.js').read_text(encoding='utf-8')
     assert 'cloneNode(true)' in script and 'textContent = text' in script
+    assert "const MARQUEE_SEPARATOR = '***';" in script, "<text> *** <text> *** <text>"
 
 
 def test_configuration_page_shows_previews_and_confirms_saving(admin):

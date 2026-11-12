@@ -1,6 +1,7 @@
 // Ticker that repeats its text without a gap: the text is placed next to itself as often
 // as needed to fill the width, and the row moves left by exactly one repetition, endlessly.
 const MARQUEE_SPEED_FACTOR = 3;  // pixels per second = this factor times the font size
+const MARQUEE_SEPARATOR = '***';  // shown between two repetitions: <text> *** <text> *** <text>
 
 function setMarquee(container, text) {
     text = (text || '').trim();
@@ -15,6 +16,10 @@ function setMarquee(container, text) {
     const item = document.createElement('span');
     item.className = 'marquee-item';
     item.textContent = text;
+    const separator = document.createElement('span');
+    separator.className = 'marquee-separator';
+    separator.textContent = MARQUEE_SEPARATOR;
+    item.appendChild(separator);
     track.appendChild(item);
     container.appendChild(track);
 

@@ -11,7 +11,9 @@
 }
 .marquee-item {
     flex-shrink: 0;
-    padding-right: 4em;  /* distance between two repetitions */
+}
+.marquee-separator {
+    padding: 0 1.2em;  /* distance between the text and the separator on both sides */
 }
 @keyframes marquee-scroll {
     from { transform: translateX(0); }
